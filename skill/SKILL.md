@@ -1,0 +1,103 @@
+---
+name: lead-enrichment-outreach
+description: Find company websites, extract emails/phones/contact pages, enrich business context, and generate personalized B2B outreach drafts. Use when an OpenClaw bot needs to turn a company name, domain, or lead list into contactable outreach prospects with structured lead data and email-ready personalization.
+---
+
+# Lead Enrichment + Outreach
+
+Use this skill to turn rough lead inputs into structured outreach dossiers.
+
+## Workflow
+
+1. Normalize the input.
+   - Accept company name, region, domain, or CSV/JSON list.
+   - Prefer `company + region` when the name is ambiguous.
+
+2. Enrich the lead.
+   - Run `scripts/enrich_lead.py` for single leads.
+   - Run `scripts/batch_enrich_csv.py` for CSV batches.
+   - Keep the raw JSON output.
+
+3. Review the dossier.
+   - Check `primary_domain`, `emails`, `phones`, `contact_pages`, and `summary`.
+   - Reject obvious garbage: generic directories, social-only results, dead domains, or irrelevant regions.
+   - If no usable website was found, retry with a tighter query before giving up.
+
+4. Prepare outreach context.
+   - Extract: what the company does, likely buyer pains, region, role hints, and strongest contact path.
+   - Prefer named contacts when present. Otherwise use a role-based opener.
+
+5. Generate the draft.
+   - Use the dossier plus the offer.
+   - Keep claims grounded in the dossier.
+   - Do not invent detailed facts that were not observed.
+
+## Output rules
+
+Produce a compact dossier with this shape:
+- company
+- region
+- query
+- primary_domain
+- website_title
+- summary
+- emails
+- phones
+- contact_pages
+- social_links
+- snippets
+- confidence
+- warnings
+
+When writing outreach:
+- mention one concrete business clue from the dossier
+- mention one likely operational risk or pain
+- connect the offer to that pain
+- end with one clear CTA
+
+## Scripts
+
+### `scripts/enrich_lead.py`
+Use for one company.
+
+Examples:
+```bash
+python3 scripts/enrich_lead.py --company "Northwind Logistics" --region "Volgograd"
+python3 scripts/enrich_lead.py --company "Acme" --domain acme.example
+```
+
+### `scripts/batch_enrich_csv.py`
+Use for CSV batches. Requires a `company` column. Optional: `region`, `domain`.
+
+Example:
+```bash
+python3 scripts/batch_enrich_csv.py leads.csv --output enriched.json
+```
+
+### `scripts/generate_outreach.py`
+Use after enrichment to turn a dossier into a first email draft.
+
+Example:
+```bash
+python3 scripts/generate_outreach.py dossier.json --offer "AI-assisted client outreach"
+```
+
+## References
+
+- Read `references/lead-schema.md` when mapping data or validating outputs.
+- Read `references/outreach-patterns.md` when drafting the email or follow-up.
+
+## Heuristics
+
+- Prefer the official website over directory listings.
+- Prefer pages with `/contact`, `/about`, `/team`, or explicit email addresses.
+- Score contacts higher when the domain email matches the company website.
+- If only a contact form exists, keep it as a fallback channel.
+- If multiple domains compete, favor the one whose title/snippets best match the company name and region.
+
+## Guardrails
+
+- Do not send automatically unless the user explicitly wants sending.
+- Treat scraped personal data carefully.
+- Keep public examples sanitized.
+- When confidence is low, say why.

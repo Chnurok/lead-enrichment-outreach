@@ -1,0 +1,31 @@
+{
+  "cases": [
+    {
+      "company": "OpenAI",
+      "basic": 0.05,
+      "smart": 0.05,
+      "winner": "smart"
+    },
+    {
+      "company": "Stripe",
+      "basic": 0.05,
+      "smart": 0.05,
+      "winner": "smart"
+    },
+    {
+      "company": "DeepL",
+      "basic": 0.05,
+      "smart": 0.05,
+      "winner": "smart"
+    },
+    {
+      "company": "Mistral AI",
+      "basic": 0.05,
+      "smart": 0.05,
+      "winner": "smart"
+    }
+  ],
+  "basic_avg": 0.05,
+  "smart_avg": 0.05,
+  "recommended_mode": "smart"
+}

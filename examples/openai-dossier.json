@@ -1,0 +1,17 @@
+{
+  "company": "OpenAI",
+  "region": null,
+  "query": "OpenAI",
+  "primary_domain": "openai.com",
+  "website_title": null,
+  "summary": null,
+  "emails": [],
+  "phones": [],
+  "contact_pages": [],
+  "social_links": [],
+  "snippets": [],
+  "confidence": 0.35,
+  "warnings": [
+    "fetch failed for https://openai.com: HTTP Error 403: Forbidden"
+  ]
+}
