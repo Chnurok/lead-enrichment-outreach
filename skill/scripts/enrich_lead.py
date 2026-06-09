@@ -19,6 +19,22 @@ PHONE_RE = re.compile(r"(?:\+?\d[\d\s().-]{7,}\d)")
 SOCIAL_RE = re.compile(r"(linkedin\.com|facebook\.com|instagram\.com|t\.me|telegram\.me|vk\.com|youtube\.com)", re.I)
 BAD_HOST_HINTS = ("yandex.ru", "2gis.ru", "zoon.ru", "yellowpages", "facebook.com", "instagram.com", "linkedin.com", "wikipedia.org")
 CONTACT_HINTS = ("contact", "contacts", "about", "team", "company", "support")
+WEAK_CONTACT_LOCALPARTS = (
+    "press", "privacy", "legal", "abuse", "noreply", "no-reply", "careers", "jobs", "career",
+    "hr", "admin", "webmaster", "postmaster"
+)
+STRONG_CONTACT_LOCALPARTS = (
+    "sales", "hello", "contact", "info", "business", "partnership", "partnerships", "founder",
+    "ceo", "owner", "director", "manager", "office", "team", "support"
+)
+JUNK_SUMMARY_PATTERNS = (
+    r"enable javascript[^.?!]*[.?!]?",
+    r"cookie[s]?[^.?!]*[.?!]?",
+    r"accept all[^.?!]*[.?!]?",
+    r"privacy policy[^.?!]*[.?!]?",
+    r"all rights reserved[^.?!]*[.?!]?",
+    r"sign in[^.?!]*[.?!]?",
+)
 
 
 class LinkParser(HTMLParser):
@@ -175,28 +191,120 @@ def parse_page(url, base_domain):
     return result, None
 
 
+def email_domain(email):
+    parts = (email or "").rsplit("@", 1)
+    return parts[1].lower() if len(parts) == 2 else ""
+
+
+def email_localpart(email):
+    return (email or "").split("@", 1)[0].lower()
+
+
+def classify_contact_email(email, primary_domain):
+    local = email_localpart(email)
+    dom = email_domain(email)
+    official = bool(primary_domain and dom == primary_domain)
+    weak = any(token in local for token in WEAK_CONTACT_LOCALPARTS)
+    strong = any(token in local for token in STRONG_CONTACT_LOCALPARTS)
+    if official and strong:
+        tier = "official_strong"
+    elif official and not weak:
+        tier = "official_general"
+    elif official:
+        tier = "official_weak"
+    elif strong and not weak:
+        tier = "external_strong"
+    elif weak:
+        tier = "external_weak"
+    else:
+        tier = "external_general"
+    return {
+        "email": email,
+        "domain": dom,
+        "official": official,
+        "weak": weak,
+        "strong": strong,
+        "tier": tier,
+    }
+
+
+def rank_contact_email(email, primary_domain):
+    meta = classify_contact_email(email, primary_domain)
+    score = 0
+    if meta["official"]:
+        score += 100
+    if meta["strong"]:
+        score += 15
+    if not meta["weak"]:
+        score += 10
+    if meta["weak"]:
+        score -= 35
+    if meta["domain"] and meta["domain"] in BAD_HOST_HINTS:
+        score -= 20
+    if "info" in email_localpart(email):
+        score += 3
+    return score, meta
+
+
+def choose_best_contacts(emails, primary_domain):
+    ranked = []
+    for email in dedupe(emails):
+        score, meta = rank_contact_email(email, primary_domain)
+        ranked.append((score, email, meta))
+    ranked.sort(key=lambda item: (-item[0], item[1]))
+    ordered = [email for _, email, _ in ranked]
+    best = ordered[0] if ordered else None
+    meta = ranked[0][2] if ranked else None
+    return ordered, best, meta, ranked
+
+
+def cleanup_summary_text(text):
+    cleaned = text or ""
+    for pattern in JUNK_SUMMARY_PATTERNS:
+        cleaned = re.sub(pattern, " ", cleaned, flags=re.I)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" -|•")
+    return cleaned or None
+
+
 def summarize(text, snippets):
     if text:
         sentences = re.split(r"(?<=[.!?])\s+", text)
-        useful = [s.strip() for s in sentences if len(s.strip()) > 50]
+        useful = []
+        for sentence in sentences:
+            candidate = cleanup_summary_text(sentence.strip())
+            if candidate and len(candidate) > 50:
+                useful.append(candidate)
         if useful:
-            return " ".join(useful[:2])[:320]
+            return cleanup_summary_text(" ".join(useful[:2])[:320])
     if snippets:
-        return max(snippets, key=len)[:320]
+        best = cleanup_summary_text(max(snippets, key=len))
+        if best:
+            return best[:320]
     return None
 
 
-def compute_confidence(domain, emails, phones, summary, warnings):
-    score = 0.1
+def compute_confidence(domain, emails, phones, summary, warnings, best_contact_meta=None):
+    score = 0.05
     if domain:
         score += 0.3
     if emails:
-        score += 0.25
+        score += 0.15
     if phones:
-        score += 0.15
+        score += 0.1
     if summary:
-        score += 0.15
-    score -= min(0.2, 0.05 * len(warnings))
+        score += 0.1
+    if best_contact_meta:
+        if best_contact_meta["official"]:
+            score += 0.15
+        if best_contact_meta["strong"]:
+            score += 0.05
+        if best_contact_meta["weak"]:
+            score -= 0.15
+        if not best_contact_meta["official"]:
+            score -= 0.1
+    elif emails:
+        score -= 0.1
+    score -= min(0.3, 0.05 * len(warnings))
     return round(max(0.0, min(1.0, score)), 2)
 
 
@@ -245,14 +353,23 @@ def enrich(company, region=None, domain=None, query_mode="smart"):
     else:
         summary = summarize(None, snippets)
 
+    ordered_emails, best_email, best_contact_meta, ranked_contacts = choose_best_contacts(emails, primary_domain)
+    if best_contact_meta and best_contact_meta["weak"]:
+        warnings.append(f"Best available email looks weak for outreach: {best_email}")
+    if ordered_emails and (not best_contact_meta or not best_contact_meta["official"]):
+        warnings.append("No official-domain outreach email found")
+    if ordered_emails and all(meta["weak"] for _, _, meta in ranked_contacts):
+        warnings.append("Only weak outreach contacts found")
+
     result = {
         "company": company,
         "region": region,
         "query": query_str,
         "primary_domain": primary_domain,
         "website_title": website_title,
-        "summary": summary,
-        "emails": dedupe(emails)[:10],
+        "summary": cleanup_summary_text(summary),
+        "emails": ordered_emails[:10],
+        "best_contact_email": best_email,
         "phones": dedupe(phones)[:10],
         "contact_pages": dedupe(contact_pages)[:10],
         "social_links": dedupe(social_links)[:10],
@@ -260,7 +377,7 @@ def enrich(company, region=None, domain=None, query_mode="smart"):
         "confidence": 0.0,
         "warnings": dedupe(warnings),
     }
-    result["confidence"] = compute_confidence(result["primary_domain"], result["emails"], result["phones"], result["summary"], result["warnings"])
+    result["confidence"] = compute_confidence(result["primary_domain"], result["emails"], result["phones"], result["summary"], result["warnings"], best_contact_meta)
     return result
 
 
