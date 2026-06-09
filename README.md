@@ -2,33 +2,30 @@
 
 ![Preview](assets/preview.svg)
 
-A small, inspectable Python toolkit plus OpenClaw skill for one job: turn a rough company input into a grounded outreach dossier and a usable first-draft email.
+Turn a company name into a reviewable outreach dossier and a usable first-draft email.
 
-## What this repo is good at
+A lightweight Python toolkit first, with an optional OpenClaw skill for the same workflow.
 
-It helps with the messy middle of outbound research:
+## Who this is for
 
-- identify the likely official website
-- pull visible contact paths from public pages
-- rank contacts by outreach usefulness
-- attach provenance to extracted fields
-- expose trust signals instead of hiding everything behind one score
-- package that into a compact JSON dossier
-- turn the dossier into a restrained outreach draft
+- Python users who want inspectable enrichment output
+- OpenClaw users building research or outreach workflows
+- technical operators who are fine reviewing JSON before acting on it
 
-It is intentionally narrow. It does not promise perfect scraping, verified deliverability, or automatic sending.
+## 10-second example
 
-## Honest golden path
+```bash
+python3 skill/scripts/enrich_lead.py --company "Mistral AI" --domain mistral.ai > dossier.json
+python3 skill/scripts/generate_outreach.py dossier.json --offer "AI-assisted lead enrichment and outreach" > draft.json
+```
 
-The strongest path in this repo is:
+What you get back:
 
-1. start with a company name and, when available, the domain
-2. generate one dossier
-3. review the JSON for garbage or weak signals
-4. generate one draft from that reviewed dossier
-5. edit the final message like a human before using it
-
-That path keeps the tool useful without overselling reliability.
+- a likely official domain
+- visible contact paths from public pages
+- a best-contact guess
+- source attribution and warnings
+- an editable first-draft outreach email
 
 ## Quick start
 
@@ -41,35 +38,25 @@ pip install -r requirements.txt
 python3 -m unittest discover -s tests -q
 ```
 
-## Golden-path commands
+## Golden path
 
-### 1) Enrich one lead
+1. Start with a company name and, when available, a domain.
+2. Generate one dossier.
+3. Review the JSON for weak matches or bad contacts.
+4. Generate one draft from the reviewed dossier.
+5. Edit the final message like a human before using it.
 
-```bash
-python3 skill/scripts/enrich_lead.py --company "Mistral AI" --domain mistral.ai > dossier.json
-```
+## What to check in the dossier
 
-What to check in `dossier.json` before trusting it:
-
-- `primary_domain` looks official
-- `site_verification.verified` is true or at least plausible
-- `summary` is coherent
-- `best_contact_email` is not obviously a weak target like `press@` or `privacy@`
+- `primary_domain` looks plausible
+- `site_verification.verified` is true or at least believable
+- `best_contact_email` is not a weak target like `press@` or `privacy@`
 - `summary_source`, `email_sources`, and `phone_sources` point to believable pages
-- `trust_signals` and `warnings` match your own intuition about the result
-
-### 2) Generate one draft
-
-```bash
-python3 skill/scripts/generate_outreach.py dossier.json \
-  --offer "AI-assisted lead enrichment and outreach" > draft.json
-```
-
-The output is a first draft, not send-ready copy.
+- `trust_signals` and `warnings` match your own intuition
 
 ## Output shape
 
-The enrichment output now includes trust-oriented fields such as:
+The enrichment output includes trust-oriented fields such as:
 
 - `site_verification`
 - `best_contact_email`
@@ -80,11 +67,9 @@ The enrichment output now includes trust-oriented fields such as:
 - `trust_signals`
 - `warnings`
 
-This makes it easier to inspect not just *what* was found, but also *why it should or should not be trusted*.
+The point is not just to return data, but to make the result reviewable.
 
 ## Examples
-
-The `examples/` directory is curated to stay believable in public:
 
 - `demo-leads.csv` — tiny batch input
 - `demo-output.json` — trimmed dossier examples with trust-oriented fields visible
@@ -99,19 +84,19 @@ The `examples/` directory is curated to stay believable in public:
 - `tests/` — unit tests plus a lightweight query-mode harness
 - `examples/` — curated public examples
 
-## Notes on reliability
+## Reliability notes
 
 This repo uses public web results and intentionally lightweight heuristics. Expect some failure modes:
 
 - sites that block fetching
-- noisy phones/emails from raw HTML
-- directories outranking the official site
+- noisy phones or emails from raw HTML
+- directory pages outranking the likely official site
 - weak but official contacts such as `press@` or `privacy@`
 - summaries that still need human cleanup
 
 If the dossier looks wrong, treat it as wrong.
 
-## Packaging as an OpenClaw skill
+## OpenClaw packaging
 
 ```bash
 python3 /usr/lib/node_modules/openclaw/skills/skill-creator/scripts/package_skill.py skill dist
