@@ -4,7 +4,7 @@
 
   <text x="88" y="100" fill="#9FB2D9" font-family="Arial, sans-serif" font-size="28" font-weight="700">Lead Enrichment Outreach</text>
   <text x="88" y="170" fill="#F4F7FF" font-family="Arial, sans-serif" font-size="52" font-weight="700">Company → contacts → dossier → draft</text>
-  <text x="88" y="214" fill="#90A4CE" font-family="Arial, sans-serif" font-size="24">Public-web enrichment toolkit for OpenClaw and B2B prospecting</text>
+  <text x="88" y="214" fill="#90A4CE" font-family="Arial, sans-serif" font-size="24">Find the official site, surface usable contacts, and draft a first outreach email</text>
 
   <rect x="88" y="248" width="154" height="42" rx="21" fill="#1D6BFF"/>
   <text x="116" y="275" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="20" font-weight="700">search + parse</text>
@@ -15,22 +15,22 @@
 
   <rect x="88" y="326" width="330" height="206" rx="20" fill="#0E1528" stroke="#253252"/>
   <text x="112" y="368" fill="#F4F7FF" font-family="Arial, sans-serif" font-size="28" font-weight="700">Structured dossier</text>
-  <text x="112" y="404" fill="#90A4CE" font-family="Arial, sans-serif" font-size="20">official site</text>
-  <text x="112" y="434" fill="#90A4CE" font-family="Arial, sans-serif" font-size="20">emails and phones</text>
-  <text x="112" y="464" fill="#90A4CE" font-family="Arial, sans-serif" font-size="20">contact pages</text>
-  <text x="112" y="494" fill="#90A4CE" font-family="Arial, sans-serif" font-size="20">warnings + provenance</text>
+  <text x="112" y="404" fill="#90A4CE" font-family="Arial, sans-serif" font-size="20">official domain</text>
+  <text x="112" y="434" fill="#90A4CE" font-family="Arial, sans-serif" font-size="20">emails, phones, pages</text>
+  <text x="112" y="464" fill="#90A4CE" font-family="Arial, sans-serif" font-size="20">best contact candidate</text>
+  <text x="112" y="494" fill="#90A4CE" font-family="Arial, sans-serif" font-size="20">warnings + sources</text>
 
   <rect x="474" y="326" width="330" height="206" rx="20" fill="#0E1528" stroke="#253252"/>
-  <text x="498" y="368" fill="#F4F7FF" font-family="Arial, sans-serif" font-size="28" font-weight="700">Trust-oriented output</text>
+  <text x="498" y="368" fill="#F4F7FF" font-family="Arial, sans-serif" font-size="28" font-weight="700">Why trust it</text>
   <text x="498" y="404" fill="#90A4CE" font-family="Arial, sans-serif" font-size="20">site verification</text>
-  <text x="498" y="434" fill="#90A4CE" font-family="Arial, sans-serif" font-size="20">best contact ranking</text>
-  <text x="498" y="464" fill="#90A4CE" font-family="Arial, sans-serif" font-size="20">source attribution</text>
-  <text x="498" y="494" fill="#90A4CE" font-family="Arial, sans-serif" font-size="20">human review first</text>
+  <text x="498" y="434" fill="#90A4CE" font-family="Arial, sans-serif" font-size="20">contact quality ranking</text>
+  <text x="498" y="464" fill="#90A4CE" font-family="Arial, sans-serif" font-size="20">field-level sources</text>
+  <text x="498" y="494" fill="#90A4CE" font-family="Arial, sans-serif" font-size="20">review before sending</text>
 
   <rect x="860" y="326" width="332" height="206" rx="20" fill="#0E1528" stroke="#253252"/>
   <text x="884" y="368" fill="#F4F7FF" font-family="Arial, sans-serif" font-size="28" font-weight="700">First outreach draft</text>
-  <text x="884" y="404" fill="#90A4CE" font-family="Arial, sans-serif" font-size="20">restrained opener</text>
-  <text x="884" y="434" fill="#90A4CE" font-family="Arial, sans-serif" font-size="20">grounded context</text>
-  <text x="884" y="464" fill="#90A4CE" font-family="Arial, sans-serif" font-size="20">clear CTA</text>
-  <text x="884" y="494" fill="#90A4CE" font-family="Arial, sans-serif" font-size="20">human-edited before use</text>
+  <text x="884" y="404" fill="#90A4CE" font-family="Arial, sans-serif" font-size="20">short, restrained opener</text>
+  <text x="884" y="434" fill="#90A4CE" font-family="Arial, sans-serif" font-size="20">grounded company context</text>
+  <text x="884" y="464" fill="#90A4CE" font-family="Arial, sans-serif" font-size="20">clear next step</text>
+  <text x="884" y="494" fill="#90A4CE" font-family="Arial, sans-serif" font-size="20">always edited by a human</text>
 </svg>
