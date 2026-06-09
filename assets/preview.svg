@@ -1,0 +1,29 @@
+<svg width="1280" height="640" viewBox="0 0 1280 640" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1280" height="640" rx="32" fill="#0B1020"/>
+  <rect x="48" y="48" width="1184" height="544" rx="24" fill="#11182D" stroke="#26314F"/>
+  <rect x="88" y="108" width="332" height="424" rx="20" fill="#0E1528" stroke="#253252"/>
+  <rect x="460" y="108" width="732" height="180" rx="20" fill="#0E1528" stroke="#253252"/>
+  <rect x="460" y="316" width="352" height="216" rx="20" fill="#0E1528" stroke="#253252"/>
+  <rect x="840" y="316" width="352" height="216" rx="20" fill="#0E1528" stroke="#253252"/>
+  <text x="88" y="84" fill="#9FB2D9" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="700">Lead Enrichment Outreach</text>
+  <text x="88" y="150" fill="#F4F7FF" font-family="Inter, Arial, sans-serif" font-size="48" font-weight="700">Company → contacts → dossier → draft</text>
+  <text x="88" y="192" fill="#90A4CE" font-family="Inter, Arial, sans-serif" font-size="24">Public-safe enrichment workflow for OpenClaw and B2B prospecting</text>
+  <rect x="88" y="240" width="152" height="40" rx="20" fill="#1D6BFF"/>
+  <text x="114" y="266" fill="#FFFFFF" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="700">search + parse</text>
+  <rect x="254" y="240" width="130" height="40" rx="20" fill="#24314F"/>
+  <text x="286" y="266" fill="#CFE0FF" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="700">batch csv</text>
+  <rect x="108" y="338" width="292" height="24" rx="12" fill="#24314F"/>
+  <rect x="108" y="378" width="224" height="16" rx="8" fill="#1D6BFF"/>
+  <rect x="108" y="410" width="260" height="16" rx="8" fill="#2D3A58"/>
+  <rect x="108" y="442" width="210" height="16" rx="8" fill="#2D3A58"/>
+  <text x="484" y="148" fill="#8EA0C8" font-family="IBM Plex Mono, monospace" font-size="20">python3 skill/scripts/enrich_lead.py --company "Stripe" --domain stripe.com</text>
+  <text x="484" y="188" fill="#F4F7FF" font-family="IBM Plex Mono, monospace" font-size="20">{</text>
+  <text x="510" y="220" fill="#74E0A6" font-family="IBM Plex Mono, monospace" font-size="18">"primary_domain": "stripe.com",</text>
+  <text x="510" y="248" fill="#74E0A6" font-family="IBM Plex Mono, monospace" font-size="18">"emails": ["support@stripe.com"],</text>
+  <text x="510" y="276" fill="#74E0A6" font-family="IBM Plex Mono, monospace" font-size="18">"confidence": 0.8</text>
+  <text x="680" y="188" fill="#F4F7FF" font-family="IBM Plex Mono, monospace" font-size="20">}</text>
+  <text x="484" y="356" fill="#F4F7FF" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="700">Structured dossier</text>
+  <text x="484" y="396" fill="#90A4CE" font-family="Inter, Arial, sans-serif" font-size="20">official site, emails, phones, contact pages, summary, confidence</text>
+  <text x="864" y="356" fill="#F4F7FF" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="700">First outreach draft</text>
+  <text x="864" y="396" fill="#90A4CE" font-family="Inter, Arial, sans-serif" font-size="20">grounded opener + pain hypothesis + CTA</text>
+</svg>

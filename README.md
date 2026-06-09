@@ -1,6 +1,12 @@
 # Lead Enrichment Outreach
 
-Reusable OpenClaw skill + scripts for turning rough company inputs into outreach-ready dossiers.
+![Preview](assets/preview.svg)
+
+Reusable OpenClaw skill + Python scripts for turning rough company inputs into outreach-ready dossiers.
+
+## Why this exists
+
+A lot of outreach work breaks on the boring middle: finding the right site, locating real contact paths, extracting enough context to say something relevant, and packaging that into a usable first draft. This repo focuses on that middle layer.
 
 ## What it does
 
@@ -15,8 +21,20 @@ Reusable OpenClaw skill + scripts for turning rough company inputs into outreach
 ## Repo layout
 
 - `skill/` — installable OpenClaw skill
-- `tests/` — unit tests + A/B test harness
-- `examples/` — demo input data
+- `skill/scripts/` — CLI scripts for enrichment and draft generation
+- `tests/` — unit tests + A/B harness
+- `examples/` — sanitized demo inputs and outputs
+
+## Quick start
+
+```bash
+git clone https://github.com/Chnurok/lead-enrichment-outreach.git
+cd lead-enrichment-outreach
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pytest -q
+```
 
 ## Core commands
 
@@ -36,30 +54,44 @@ python3 skill/scripts/enrich_lead.py --company "Stripe" --domain stripe.com > do
 python3 skill/scripts/generate_outreach.py dossier.json --offer "AI-assisted lead enrichment and outreach" > draft.json
 ```
 
-### Run tests
-```bash
-pytest -q
-python3 tests/ab_test_query_modes.py
-```
+## Example dossier fields
 
-## A/B test
+The enrichment step outputs structured JSON with fields like:
+
+- `company`
+- `primary_domain`
+- `summary`
+- `emails`
+- `phones`
+- `contact_pages`
+- `social_links`
+- `confidence`
+- `warnings`
+
+## A/B test mode
 
 The repo compares two search strategies:
+
 - `basic` — one simple query
 - `smart` — multiple intent-specific queries
 
-The current recommendation is based on average dossier score from the test harness.
+The current recommendation is based on average dossier score from the bundled test harness.
 
-## Packaging the skill
+## Packaging as an OpenClaw skill
 
 ```bash
 python3 /usr/lib/node_modules/openclaw/skills/skill-creator/scripts/package_skill.py skill dist
 ```
 
-## Notes
+## Design choices
 
 This repo is intentionally lightweight and public-safe:
+
 - no API keys
 - no private lead lists
-- no sending automation by default
+- no auto-sending by default
 - no hidden dependencies on local secrets
+
+## License
+
+MIT
