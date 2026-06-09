@@ -64,6 +64,17 @@ def dedupe(items):
     return list(OrderedDict((item, None) for item in items if item))
 
 
+def dedupe_records(records, key_fields):
+    seen = OrderedDict()
+    for record in records:
+        if not record:
+            continue
+        key = tuple(record.get(field) for field in key_fields)
+        if key not in seen:
+            seen[key] = record
+    return list(seen.values())
+
+
 def domain_of(url):
     try:
         netloc = urllib.parse.urlparse(url).netloc.lower()
@@ -176,18 +187,29 @@ def parse_page(url, base_domain):
     text = clean_text(raw)
     result["title"] = clean_text(" ".join(parser.title))[:140] if parser.title else None
     result["summary_text"] = text[:2000]
-    result["emails"] = dedupe([e.lower() for e in EMAIL_RE.findall(raw) if not e.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))])[:10]
-    result["phones"] = dedupe([p.strip() for p in PHONE_RE.findall(text)])[:10]
+    result["emails"] = dedupe_records([
+        {"value": e.lower(), "source_url": url, "source_type": "page"}
+        for e in EMAIL_RE.findall(raw)
+        if not e.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))
+    ], ("value",))[:10]
+    result["phones"] = dedupe_records([
+        {"value": p.strip(), "source_url": url, "source_type": "page"}
+        for p in PHONE_RE.findall(text)
+    ], ("value",))[:10]
 
     links = []
     for href in parser.links:
         full = urllib.parse.urljoin(url, html.unescape(href))
         links.append(full)
-    result["contact_pages"] = dedupe([
-        link for link in links
+    result["contact_pages"] = dedupe_records([
+        {"value": link, "source_url": url, "source_type": "page"}
+        for link in links
         if domain_of(link).endswith(base_domain or "") and any(h in link.lower() for h in CONTACT_HINTS)
-    ])[:10]
-    result["social_links"] = dedupe([link for link in links if SOCIAL_RE.search(link)])[:10]
+    ], ("value",))[:10]
+    result["social_links"] = dedupe_records([
+        {"value": link, "source_url": url, "source_type": "page"}
+        for link in links if SOCIAL_RE.search(link)
+    ], ("value",))[:10]
     return result, None
 
 
@@ -248,14 +270,17 @@ def rank_contact_email(email, primary_domain):
 
 def choose_best_contacts(emails, primary_domain):
     ranked = []
-    for email in dedupe(emails):
+    unique = dedupe_records(emails, ("value",))
+    for record in unique:
+        email = record["value"]
         score, meta = rank_contact_email(email, primary_domain)
-        ranked.append((score, email, meta))
+        ranked.append((score, email, meta, record))
     ranked.sort(key=lambda item: (-item[0], item[1]))
-    ordered = [email for _, email, _ in ranked]
+    ordered = [email for _, email, _, _ in ranked]
     best = ordered[0] if ordered else None
     meta = ranked[0][2] if ranked else None
-    return ordered, best, meta, ranked
+    best_record = ranked[0][3] if ranked else None
+    return ordered, best, meta, best_record, ranked
 
 
 def cleanup_summary_text(text):
@@ -266,7 +291,7 @@ def cleanup_summary_text(text):
     return cleaned or None
 
 
-def summarize(text, snippets):
+def summarize(text, snippets, source_url=None):
     if text:
         sentences = re.split(r"(?<=[.!?])\s+", text)
         useful = []
@@ -275,11 +300,19 @@ def summarize(text, snippets):
             if candidate and len(candidate) > 50:
                 useful.append(candidate)
         if useful:
-            return cleanup_summary_text(" ".join(useful[:2])[:320])
+            return {
+                "value": cleanup_summary_text(" ".join(useful[:2])[:320]),
+                "source_url": source_url,
+                "source_type": "page",
+            }
     if snippets:
         best = cleanup_summary_text(max(snippets, key=len))
         if best:
-            return best[:320]
+            return {
+                "value": best[:320],
+                "source_url": None,
+                "source_type": "serp",
+            }
     return None
 
 
@@ -323,7 +356,7 @@ def enrich(company, region=None, domain=None, query_mode="smart"):
     warnings.extend(choose_warnings)
 
     website_title = None
-    summary = None
+    summary_record = None
     emails = []
     phones = []
     contact_pages = []
@@ -334,13 +367,13 @@ def enrich(company, region=None, domain=None, query_mode="smart"):
         if err:
             warnings.append(err)
         website_title = parsed["title"]
-        summary = summarize(parsed["summary_text"], snippets)
+        summary_record = summarize(parsed["summary_text"], snippets, site_url)
         emails.extend(parsed["emails"])
         phones.extend(parsed["phones"])
         contact_pages.extend(parsed["contact_pages"])
         social_links.extend(parsed["social_links"])
 
-        for extra_url in dedupe(contact_pages)[:MAX_CONTACT_FETCH]:
+        for extra_url in [r["value"] for r in dedupe_records(contact_pages, ("value",))[:MAX_CONTACT_FETCH]]:
             extra, err = parse_page(extra_url, primary_domain or "")
             if err:
                 warnings.append(err)
@@ -348,31 +381,46 @@ def enrich(company, region=None, domain=None, query_mode="smart"):
             emails.extend(extra["emails"])
             phones.extend(extra["phones"])
             social_links.extend(extra["social_links"])
-            if not summary:
-                summary = summarize(extra["summary_text"], snippets)
+            if not summary_record:
+                summary_record = summarize(extra["summary_text"], snippets, extra_url)
     else:
-        summary = summarize(None, snippets)
+        summary_record = summarize(None, snippets)
 
-    ordered_emails, best_email, best_contact_meta, ranked_contacts = choose_best_contacts(emails, primary_domain)
+    ordered_emails, best_email, best_contact_meta, best_contact_record, ranked_contacts = choose_best_contacts(emails, primary_domain)
     if best_contact_meta and best_contact_meta["weak"]:
         warnings.append(f"Best available email looks weak for outreach: {best_email}")
     if ordered_emails and (not best_contact_meta or not best_contact_meta["official"]):
         warnings.append("No official-domain outreach email found")
-    if ordered_emails and all(meta["weak"] for _, _, meta in ranked_contacts):
+    if ordered_emails and all(meta["weak"] for _, _, meta, _ in ranked_contacts):
         warnings.append("Only weak outreach contacts found")
 
+    phone_values = [record["value"] for record in dedupe_records(phones, ("value",))[:10]]
+    contact_page_values = [record["value"] for record in dedupe_records(contact_pages, ("value",))[:10]]
+    social_values = [record["value"] for record in dedupe_records(social_links, ("value",))[:10]]
+    email_sources = {record["value"]: {"source_url": record.get("source_url"), "source_type": record.get("source_type")} for record in dedupe_records(emails, ("value",))}
+    phone_sources = {record["value"]: {"source_url": record.get("source_url"), "source_type": record.get("source_type")} for record in dedupe_records(phones, ("value",))}
     result = {
         "company": company,
         "region": region,
         "query": query_str,
         "primary_domain": primary_domain,
         "website_title": website_title,
-        "summary": cleanup_summary_text(summary),
+        "summary": summary_record["value"] if summary_record else None,
+        "summary_source": {
+            "source_url": summary_record.get("source_url"),
+            "source_type": summary_record.get("source_type"),
+        } if summary_record else None,
         "emails": ordered_emails[:10],
+        "email_sources": {email: email_sources[email] for email in ordered_emails[:10] if email in email_sources},
         "best_contact_email": best_email,
-        "phones": dedupe(phones)[:10],
-        "contact_pages": dedupe(contact_pages)[:10],
-        "social_links": dedupe(social_links)[:10],
+        "best_contact_source": {
+            "source_url": best_contact_record.get("source_url"),
+            "source_type": best_contact_record.get("source_type"),
+        } if best_contact_record else None,
+        "phones": phone_values,
+        "phone_sources": {phone: phone_sources[phone] for phone in phone_values if phone in phone_sources},
+        "contact_pages": contact_page_values,
+        "social_links": social_values,
         "snippets": snippets[:5],
         "confidence": 0.0,
         "warnings": dedupe(warnings),
