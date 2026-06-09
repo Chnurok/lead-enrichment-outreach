@@ -16,11 +16,11 @@
   <rect x="108" y="378" width="224" height="16" rx="8" fill="#1D6BFF"/>
   <rect x="108" y="410" width="260" height="16" rx="8" fill="#2D3A58"/>
   <rect x="108" y="442" width="210" height="16" rx="8" fill="#2D3A58"/>
-  <text x="484" y="148" fill="#8EA0C8" font-family="IBM Plex Mono, monospace" font-size="20">python3 skill/scripts/enrich_lead.py --company "Stripe" --domain stripe.com</text>
+  <text x="484" y="148" fill="#8EA0C8" font-family="IBM Plex Mono, monospace" font-size="20">python3 skill/scripts/enrich_lead.py --company &quot;Stripe&quot; --domain stripe.com</text>
   <text x="484" y="188" fill="#F4F7FF" font-family="IBM Plex Mono, monospace" font-size="20">{</text>
-  <text x="510" y="220" fill="#74E0A6" font-family="IBM Plex Mono, monospace" font-size="18">"primary_domain": "stripe.com",</text>
-  <text x="510" y="248" fill="#74E0A6" font-family="IBM Plex Mono, monospace" font-size="18">"emails": ["support@stripe.com"],</text>
-  <text x="510" y="276" fill="#74E0A6" font-family="IBM Plex Mono, monospace" font-size="18">"confidence": 0.8</text>
+  <text x="510" y="220" fill="#74E0A6" font-family="IBM Plex Mono, monospace" font-size="18">&quot;primary_domain&quot;: &quot;stripe.com&quot;,</text>
+  <text x="510" y="248" fill="#74E0A6" font-family="IBM Plex Mono, monospace" font-size="18">&quot;emails&quot;: [&quot;support@stripe.com&quot;],</text>
+  <text x="510" y="276" fill="#74E0A6" font-family="IBM Plex Mono, monospace" font-size="18">&quot;confidence&quot;: 0.8</text>
   <text x="680" y="188" fill="#F4F7FF" font-family="IBM Plex Mono, monospace" font-size="20">}</text>
   <text x="484" y="356" fill="#F4F7FF" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="700">Structured dossier</text>
   <text x="484" y="396" fill="#90A4CE" font-family="Inter, Arial, sans-serif" font-size="20">official site, emails, phones, contact pages, summary, confidence</text>
