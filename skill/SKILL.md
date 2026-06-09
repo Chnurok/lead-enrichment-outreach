@@ -1,6 +1,6 @@
 ---
 name: lead-enrichment-outreach
-description: Find company websites, extract emails/phones/contact pages, enrich business context, and generate personalized B2B outreach drafts. Use when an OpenClaw bot needs to turn a company name, domain, or lead list into contactable outreach prospects with structured lead data and email-ready personalization.
+description: Find likely company websites, extract visible public contact paths, build compact lead dossiers, and generate first-draft B2B outreach. Use when an OpenClaw bot needs to turn a company name, domain, or lead list into a reviewed outreach starting point.
 ---
 
 # Lead Enrichment + Outreach
@@ -24,8 +24,8 @@ Use this skill to turn rough lead inputs into structured outreach dossiers.
    - If no usable website was found, retry with a tighter query before giving up.
 
 4. Prepare outreach context.
-   - Extract: what the company does, likely buyer pains, region, role hints, and strongest contact path.
-   - Prefer named contacts when present. Otherwise use a role-based opener.
+   - Extract: what the company appears to do, the strongest visible contact path, and one plausible workflow pain.
+   - Prefer explicit emails when present. Otherwise use a contact page or social link as fallback context.
 
 5. Generate the draft.
    - Use the dossier plus the offer.
@@ -57,29 +57,29 @@ When writing outreach:
 
 ## Scripts
 
-### `scripts/enrich_lead.py`
+### `skill/scripts/enrich_lead.py`
 Use for one company.
 
 Examples:
 ```bash
-python3 scripts/enrich_lead.py --company "Northwind Logistics" --region "Volgograd"
-python3 scripts/enrich_lead.py --company "Acme" --domain acme.example
+python3 skill/scripts/enrich_lead.py --company "Northwind Logistics" --region "Volgograd"
+python3 skill/scripts/enrich_lead.py --company "Acme" --domain acme.example
 ```
 
-### `scripts/batch_enrich_csv.py`
+### `skill/scripts/batch_enrich_csv.py`
 Use for CSV batches. Requires a `company` column. Optional: `region`, `domain`.
 
 Example:
 ```bash
-python3 scripts/batch_enrich_csv.py leads.csv --output enriched.json
+python3 skill/scripts/batch_enrich_csv.py leads.csv --output enriched.json
 ```
 
-### `scripts/generate_outreach.py`
+### `skill/scripts/generate_outreach.py`
 Use after enrichment to turn a dossier into a first email draft.
 
 Example:
 ```bash
-python3 scripts/generate_outreach.py dossier.json --offer "AI-assisted client outreach"
+python3 skill/scripts/generate_outreach.py dossier.json --offer "AI-assisted client outreach"
 ```
 
 ## References

@@ -1,31 +1,23 @@
 {
+  "note": "This repository includes an A/B harness for query strategies, but the bundled report is illustrative only and should not be treated as a benchmark.",
   "cases": [
     {
-      "company": "OpenAI",
-      "basic": 0.05,
-      "smart": 0.05,
-      "winner": "smart"
-    },
-    {
-      "company": "Stripe",
-      "basic": 0.05,
-      "smart": 0.05,
-      "winner": "smart"
+      "company": "Mistral AI",
+      "basic": 0.68,
+      "smart": 0.8,
+      "winner": "smart",
+      "comment": "smart mode found stronger official-site contact paths"
     },
     {
       "company": "DeepL",
-      "basic": 0.05,
-      "smart": 0.05,
-      "winner": "smart"
-    },
-    {
-      "company": "Mistral AI",
-      "basic": 0.05,
-      "smart": 0.05,
-      "winner": "smart"
+      "basic": 0.62,
+      "smart": 0.7,
+      "winner": "smart",
+      "comment": "smart mode preserved more buyer-relevant contact options"
     }
   ],
-  "basic_avg": 0.05,
-  "smart_avg": 0.05,
-  "recommended_mode": "smart"
+  "basic_avg": 0.65,
+  "smart_avg": 0.75,
+  "recommended_mode": "smart",
+  "warning": "Tiny sample, hand-curated, and not stable enough for product claims."
 }

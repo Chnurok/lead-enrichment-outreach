@@ -1,17 +1,23 @@
 {
-  "company": "OpenAI",
+  "company": "Mistral AI",
   "region": null,
-  "query": "OpenAI",
-  "primary_domain": "openai.com",
-  "website_title": null,
-  "summary": null,
-  "emails": [],
+  "query": "Mistral AI",
+  "primary_domain": "mistral.ai",
+  "website_title": "Frontier AI LLMs, assistants, agents, services | Mistral AI",
+  "summary": "Mistral AI presents frontier language models, assistants, and enterprise AI services with clear product and contact paths for prospective buyers.",
+  "emails": [
+    "press@mistral.ai",
+    "privacy@mistral.ai"
+  ],
   "phones": [],
-  "contact_pages": [],
-  "social_links": [],
+  "contact_pages": [
+    "https://mistral.ai/contact",
+    "https://mistral.ai/about"
+  ],
+  "social_links": [
+    "https://www.linkedin.com/company/mistralai/"
+  ],
   "snippets": [],
-  "confidence": 0.35,
-  "warnings": [
-    "fetch failed for https://openai.com: HTTP Error 403: Forbidden"
-  ]
+  "confidence": 0.8,
+  "warnings": []
 }

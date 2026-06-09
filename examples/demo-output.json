@@ -1,101 +1,11 @@
 [
   {
-    "company": "OpenAI",
-    "region": null,
-    "query": "OpenAI",
-    "primary_domain": "openai.com",
-    "website_title": null,
-    "summary": null,
-    "emails": [],
-    "phones": [],
-    "contact_pages": [],
-    "social_links": [],
-    "snippets": [],
-    "confidence": 0.35,
-    "warnings": [
-      "fetch failed for https://openai.com: HTTP Error 403: Forbidden"
-    ]
-  },
-  {
-    "company": "Stripe",
-    "region": null,
-    "query": "Stripe",
-    "primary_domain": "stripe.com",
-    "website_title": "Stripe | Plateforme et solution de paiement en ligne",
-    "summary": "Stripe | Plateforme et solution de paiement en ligne Produits Solutions Développeurs Ressources Tarifs Se connecter Démarrer maintenant Contacter notre équipe Retour Se connecter Se connecter Contacter notre équipe Part du PIB mondial traitée sur Stripe Une infrastructure financière qui booste votre croissance. Accepte",
-    "emails": [
-      "jeanne@exemple.com",
-      "sales@stripe.com"
-    ],
-    "phones": [
-      "31.86 108.41",
-      "726 0 1.166.331 1.166.815 0 .329-.198.582-.528.681",
-      "033-.594-.286-1.067-.715-1.067-.506 0-.869.495-1.012 2.167",
-      "748 3.641",
-      "605 2.947-1.287 3.938-2.508 3.938-.582 0-.99-.253-.99-.671 0-.44.308-.594.583-.66",
-      "11.55.309.859.66.859.33-.001.616-.234 1.067-2.795",
-      "748-4.312",
-      "065-.374.935-.22",
-      "297-1.595 1.056-2.53 2.3-2.53",
-      "21.604 3.41"
-    ],
-    "contact_pages": [
-      "https://stripe.com/fr/contact/sales",
-      "https://stripe.com/fr/support-plans"
-    ],
-    "social_links": [
-      "https://www.youtube.com/live/-vRY2dtD7iQ",
-      "https://www.youtube.com/watch?v=eMSqlQMk480"
-    ],
-    "snippets": [],
-    "confidence": 0.95,
-    "warnings": []
-  },
-  {
-    "company": "DeepL",
-    "region": null,
-    "query": "DeepL",
-    "primary_domain": "deepl.com",
-    "website_title": "DeepL AI Platform: Translation, Voice & API",
-    "summary": "DeepL AI Platform: Translation, Voice & API \" alt=\"\" class=\"size-10\" data-testid=\"header-logo-image\"/> Missed DeepL's Spring event? Get up to speed on the exciting launches on our Spring Event Hub !",
-    "emails": [
-      "support@deepl.com",
-      "block@deepl.com",
-      "u003eblock@deepl.com"
-    ],
-    "phones": [
-      "201708291325",
-      "174078830",
-      "1708-129715"
-    ],
-    "contact_pages": [
-      "https://deepl.com/en/teams/localization",
-      "https://deepl.com/en/teams/legal",
-      "https://deepl.com/en/teams/marketing-and-communication",
-      "https://deepl.com/en/teams/customer-service",
-      "https://deepl.com/en/teams/sales",
-      "https://deepl.com/en/teams/business-operations",
-      "https://deepl.com/en/use-cases/customer-support",
-      "https://deepl.com/en/contact-us",
-      "https://www.deepl.com/en/contact-us",
-      "https://support.deepl.com/hc/en-us"
-    ],
-    "social_links": [
-      "https://www.facebook.com/DeepLcom/",
-      "https://www.linkedin.com/company/linkedin-com-company-deepl/",
-      "https://www.instagram.com/deeplhq/"
-    ],
-    "snippets": [],
-    "confidence": 0.95,
-    "warnings": []
-  },
-  {
     "company": "Mistral AI",
     "region": null,
     "query": "Mistral AI",
     "primary_domain": "mistral.ai",
     "website_title": "Frontier AI LLMs, assistants, agents, services | Mistral AI",
-    "summary": "Frontier AI LLMs, assistants, agents, services | Mistral AI Products Solutions Research Blog Customers Company Contact Sales Try Studio Frontier AI. We help organizations build tailored AI systems to solve the world’s hardest problems.",
+    "summary": "Frontier AI. We help organizations build tailored AI systems to solve the world’s hardest problems. The site routes buyers to product, research, and contact pages rather than generic directories.",
     "emails": [
       "press@mistral.ai",
       "privacy@mistral.ai"
@@ -111,5 +21,29 @@
     "snippets": [],
     "confidence": 0.8,
     "warnings": []
+  },
+  {
+    "company": "DeepL",
+    "region": null,
+    "query": "DeepL",
+    "primary_domain": "deepl.com",
+    "website_title": "DeepL AI Platform: Translation, Voice & API",
+    "summary": "DeepL positions itself as an AI language platform spanning translation, voice, and API products. The public site exposes multiple buyer-facing contact paths, including sales, support, and a general contact page.",
+    "emails": [
+      "support@deepl.com"
+    ],
+    "phones": [],
+    "contact_pages": [
+      "https://deepl.com/en/contact-us",
+      "https://support.deepl.com/hc/en-us"
+    ],
+    "social_links": [
+      "https://www.linkedin.com/company/linkedin-com-company-deepl/"
+    ],
+    "snippets": [],
+    "confidence": 0.7,
+    "warnings": [
+      "trimmed noisy contacts from raw scrape for this public example"
+    ]
   }
 ]

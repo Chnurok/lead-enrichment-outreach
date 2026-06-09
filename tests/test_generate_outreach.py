@@ -18,7 +18,26 @@ class GenerateOutreachTests(unittest.TestCase):
         out = mod.draft(dossier, "AI-assisted outreach workflows", "Would Tuesday work?")
         self.assertIn("AI-assisted outreach workflows", out["body"])
         self.assertIn("Would Tuesday work?", out["body"])
+        self.assertIn("That often points to a need", out["body"])
         self.assertEqual(out["target_contact"], "hi@acme.com")
+
+    def test_draft_uses_safer_subject_and_fallback_clue(self):
+        dossier = {"company": "Acme", "summary": "Hi there. We sell tools."}
+        out = mod.draft(dossier, "AI-assisted outreach workflows", "Would Tuesday work?")
+        self.assertEqual(out["subject"], "Idea for Acme's outreach flow")
+        self.assertIn("I noticed i reviewed Acme's public company information.", out["body"])
+        self.assertNotIn("Hi there", out["body"])
+
+    def test_clean_clue_trims_noise_and_length(self):
+        noisy = "  Acme builds freight software   across Europe. Second sentence here."
+        clue = mod.clean_clue(noisy, "Acme")
+        self.assertEqual(clue, "Acme builds freight software across Europe")
+        self.assertLessEqual(len(clue), 180)
+
+    def test_choose_contact_falls_back_to_contact_page_then_social(self):
+        dossier = {"contact_pages": ["https://acme.com/contact"], "social_links": ["https://linkedin.com/company/acme"]}
+        self.assertEqual(mod.choose_contact(dossier), "https://acme.com/contact")
+        self.assertEqual(mod.choose_contact({"social_links": dossier["social_links"]}), "https://linkedin.com/company/acme")
 
 
 if __name__ == "__main__":

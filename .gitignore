@@ -1,5 +1,16 @@
 __pycache__/
-*.pyc
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.venv/
+.env
+.DS_Store
+
 dist/
+*.egg-info/
+
 *.json
 !examples/*.json
+!examples/*.csv

@@ -2,28 +2,31 @@
 
 ![Preview](assets/preview.svg)
 
-Reusable OpenClaw skill + Python scripts for turning rough company inputs into outreach-ready dossiers.
+A small, inspectable Python toolkit plus OpenClaw skill for one job: turn a rough company input into a grounded outreach dossier and a usable first-draft email.
 
-## Why this exists
+## What this repo is good at
 
-A lot of outreach work breaks on the boring middle: finding the right site, locating real contact paths, extracting enough context to say something relevant, and packaging that into a usable first draft. This repo focuses on that middle layer.
+It helps with the messy middle of outbound research:
 
-## What it does
+- identify the likely official website
+- pull visible contact paths from public pages
+- capture a short factual company summary
+- package that into a compact JSON dossier
+- turn the dossier into a restrained outreach draft
 
-- finds likely official websites
-- extracts emails, phones, contact pages, and social links
-- builds a short factual company summary
-- produces a structured lead dossier
-- generates a first outreach draft from that dossier
-- supports CSV batch enrichment
-- includes A/B testing for query strategies
+It is intentionally narrow. It does not promise perfect scraping, verified deliverability, or automatic sending.
 
-## Repo layout
+## Honest golden path
 
-- `skill/` — installable OpenClaw skill
-- `skill/scripts/` — CLI scripts for enrichment and draft generation
-- `tests/` — unit tests + A/B harness
-- `examples/` — sanitized demo inputs and outputs
+The strongest path in this repo is:
+
+1. start with a company name and, when available, the domain
+2. generate one dossier
+3. review the JSON for garbage or weak signals
+4. generate one draft from that reviewed dossier
+5. edit the final message like a human before using it
+
+That path keeps the tool useful without overselling reliability.
 
 ## Quick start
 
@@ -33,49 +36,60 @@ cd lead-enrichment-outreach
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-pytest -q
+python3 -m unittest discover -s tests -q
 ```
 
-## Core commands
+## Golden-path commands
 
-### Single lead enrichment
+### 1) Enrich one lead
+
 ```bash
-python3 skill/scripts/enrich_lead.py --company "Stripe" --domain stripe.com
+python3 skill/scripts/enrich_lead.py --company "Mistral AI" --domain mistral.ai > dossier.json
 ```
 
-### Batch enrichment
+What to check in `dossier.json` before trusting it:
+
+- `primary_domain` looks official
+- `summary` is coherent
+- `emails` or `contact_pages` are plausible
+- `warnings` do not show fetch/search failure or obvious mismatch
+
+### 2) Generate one draft
+
 ```bash
-python3 skill/scripts/batch_enrich_csv.py examples/demo-leads.csv --output enriched.json
+python3 skill/scripts/generate_outreach.py dossier.json \
+  --offer "AI-assisted lead enrichment and outreach" > draft.json
 ```
 
-### Generate outreach draft
-```bash
-python3 skill/scripts/enrich_lead.py --company "Stripe" --domain stripe.com > dossier.json
-python3 skill/scripts/generate_outreach.py dossier.json --offer "AI-assisted lead enrichment and outreach" > draft.json
-```
+The output is a first draft, not send-ready copy.
 
-## Example dossier fields
+## Examples
 
-The enrichment step outputs structured JSON with fields like:
+The `examples/` directory is curated to stay believable in public:
 
-- `company`
-- `primary_domain`
-- `summary`
-- `emails`
-- `phones`
-- `contact_pages`
-- `social_links`
-- `confidence`
-- `warnings`
+- `demo-leads.csv` — tiny batch input
+- `demo-output.json` — trimmed dossier examples with noisy scrape artifacts removed
+- `openai-dossier.json` — single credible dossier example
+- `openai-draft.json` — restrained draft example
+- `ab-report.json` — illustrative only, not benchmark evidence
 
-## A/B test mode
+## Repo layout
 
-The repo compares two search strategies:
+- `skill/` — installable OpenClaw skill
+- `skill/scripts/` — enrichment and draft-generation scripts
+- `tests/` — unit tests plus a lightweight query-mode harness
+- `examples/` — curated public examples
 
-- `basic` — one simple query
-- `smart` — multiple intent-specific queries
+## Notes on reliability
 
-The current recommendation is based on average dossier score from the bundled test harness.
+This repo uses public web results and intentionally lightweight heuristics. Expect some failure modes:
+
+- sites that block fetching
+- noisy phones/emails from raw HTML
+- directories outranking the official site
+- summaries that still need human cleanup
+
+If the dossier looks wrong, treat it as wrong.
 
 ## Packaging as an OpenClaw skill
 
@@ -83,14 +97,7 @@ The current recommendation is based on average dossier score from the bundled te
 python3 /usr/lib/node_modules/openclaw/skills/skill-creator/scripts/package_skill.py skill dist
 ```
 
-## Design choices
-
-This repo is intentionally lightweight and public-safe:
-
-- no API keys
-- no private lead lists
-- no auto-sending by default
-- no hidden dependencies on local secrets
+`dist/` is generated during packaging and is not meant to stay committed.
 
 ## License
 
