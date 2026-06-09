@@ -27,6 +27,21 @@ What you get back:
 - source attribution and warnings
 - an editable first-draft outreach email
 
+Example dossier snippet:
+
+```json
+{
+  "primary_domain": "mistral.ai",
+  "best_contact_email": "press@mistral.ai",
+  "site_verification": { "verified": true, "score": 3.25 },
+  "trust_signals": {
+    "site_verified": true,
+    "best_contact": { "official": true, "weak": true, "tier": "official_weak" }
+  },
+  "warnings": ["Best available email looks weak for outreach: press@mistral.ai"]
+}
+```
+
 ## Quick start
 
 ```bash
