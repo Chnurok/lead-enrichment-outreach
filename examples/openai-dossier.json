@@ -4,12 +4,38 @@
   "query": "Mistral AI",
   "primary_domain": "mistral.ai",
   "website_title": "Frontier AI LLMs, assistants, agents, services | Mistral AI",
+  "site_verification": {
+    "verified": true,
+    "score": 3.25,
+    "title": "Frontier AI LLMs, assistants, agents, services | Mistral AI",
+    "reason": null
+  },
   "summary": "Mistral AI presents frontier language models, assistants, and enterprise AI services with clear product and contact paths for prospective buyers.",
+  "summary_source": {
+    "source_url": "https://mistral.ai",
+    "source_type": "page"
+  },
   "emails": [
     "press@mistral.ai",
     "privacy@mistral.ai"
   ],
+  "email_sources": {
+    "press@mistral.ai": {
+      "source_url": "https://mistral.ai/contact",
+      "source_type": "page"
+    },
+    "privacy@mistral.ai": {
+      "source_url": "https://mistral.ai/privacy",
+      "source_type": "page"
+    }
+  },
+  "best_contact_email": "press@mistral.ai",
+  "best_contact_source": {
+    "source_url": "https://mistral.ai/contact",
+    "source_type": "page"
+  },
   "phones": [],
+  "phone_sources": {},
   "contact_pages": [
     "https://mistral.ai/contact",
     "https://mistral.ai/about"
@@ -18,6 +44,25 @@
     "https://www.linkedin.com/company/mistralai/"
   ],
   "snippets": [],
-  "confidence": 0.8,
-  "warnings": []
+  "confidence": 0.6,
+  "trust_signals": {
+    "has_domain": true,
+    "has_summary": true,
+    "email_count": 2,
+    "phone_count": 0,
+    "warning_count": 1,
+    "warning_penalty": 0.05,
+    "site_verified": true,
+    "site_verification_score": 3.25,
+    "best_contact": {
+      "present": true,
+      "official": true,
+      "strong": false,
+      "weak": true,
+      "tier": "official_weak"
+    }
+  },
+  "warnings": [
+    "Best available email looks weak for outreach: press@mistral.ai"
+  ]
 }

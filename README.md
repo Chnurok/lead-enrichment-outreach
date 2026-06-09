@@ -10,7 +10,9 @@ It helps with the messy middle of outbound research:
 
 - identify the likely official website
 - pull visible contact paths from public pages
-- capture a short factual company summary
+- rank contacts by outreach usefulness
+- attach provenance to extracted fields
+- expose trust signals instead of hiding everything behind one score
 - package that into a compact JSON dossier
 - turn the dossier into a restrained outreach draft
 
@@ -50,9 +52,11 @@ python3 skill/scripts/enrich_lead.py --company "Mistral AI" --domain mistral.ai 
 What to check in `dossier.json` before trusting it:
 
 - `primary_domain` looks official
+- `site_verification.verified` is true or at least plausible
 - `summary` is coherent
-- `emails` or `contact_pages` are plausible
-- `warnings` do not show fetch/search failure or obvious mismatch
+- `best_contact_email` is not obviously a weak target like `press@` or `privacy@`
+- `summary_source`, `email_sources`, and `phone_sources` point to believable pages
+- `trust_signals` and `warnings` match your own intuition about the result
 
 ### 2) Generate one draft
 
@@ -63,12 +67,27 @@ python3 skill/scripts/generate_outreach.py dossier.json \
 
 The output is a first draft, not send-ready copy.
 
+## Output shape
+
+The enrichment output now includes trust-oriented fields such as:
+
+- `site_verification`
+- `best_contact_email`
+- `best_contact_source`
+- `summary_source`
+- `email_sources`
+- `phone_sources`
+- `trust_signals`
+- `warnings`
+
+This makes it easier to inspect not just *what* was found, but also *why it should or should not be trusted*.
+
 ## Examples
 
 The `examples/` directory is curated to stay believable in public:
 
 - `demo-leads.csv` — tiny batch input
-- `demo-output.json` — trimmed dossier examples with noisy scrape artifacts removed
+- `demo-output.json` — trimmed dossier examples with trust-oriented fields visible
 - `openai-dossier.json` — single credible dossier example
 - `openai-draft.json` — restrained draft example
 - `ab-report.json` — illustrative only, not benchmark evidence
@@ -87,6 +106,7 @@ This repo uses public web results and intentionally lightweight heuristics. Expe
 - sites that block fetching
 - noisy phones/emails from raw HTML
 - directories outranking the official site
+- weak but official contacts such as `press@` or `privacy@`
 - summaries that still need human cleanup
 
 If the dossier looks wrong, treat it as wrong.
