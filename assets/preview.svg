@@ -6,12 +6,12 @@
   <text x="88" y="170" fill="#F4F7FF" font-family="Arial, sans-serif" font-size="52" font-weight="700">Company → contacts → dossier → draft</text>
   <text x="88" y="214" fill="#90A4CE" font-family="Arial, sans-serif" font-size="24">Find the official site, surface usable contacts, and draft a first outreach email</text>
 
-  <rect x="88" y="248" width="154" height="42" rx="21" fill="#1D6BFF"/>
-  <text x="116" y="275" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="20" font-weight="700">search + parse</text>
-  <rect x="254" y="248" width="124" height="42" rx="21" fill="#24314F"/>
-  <text x="286" y="275" fill="#CFE0FF" font-family="Arial, sans-serif" font-size="20" font-weight="700">batch csv</text>
-  <rect x="390" y="248" width="162" height="42" rx="21" fill="#24314F"/>
-  <text x="420" y="275" fill="#CFE0FF" font-family="Arial, sans-serif" font-size="20" font-weight="700">trust signals</text>
+  <rect x="88" y="248" width="170" height="42" rx="21" fill="#1D6BFF"/>
+  <text x="113" y="275" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="20" font-weight="700">search + parse</text>
+  <rect x="270" y="248" width="124" height="42" rx="21" fill="#24314F"/>
+  <text x="302" y="275" fill="#CFE0FF" font-family="Arial, sans-serif" font-size="20" font-weight="700">batch csv</text>
+  <rect x="406" y="248" width="162" height="42" rx="21" fill="#24314F"/>
+  <text x="436" y="275" fill="#CFE0FF" font-family="Arial, sans-serif" font-size="20" font-weight="700">trust signals</text>
 
   <rect x="88" y="326" width="330" height="206" rx="20" fill="#0E1528" stroke="#253252"/>
   <text x="112" y="368" fill="#F4F7FF" font-family="Arial, sans-serif" font-size="28" font-weight="700">Structured dossier</text>
