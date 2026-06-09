@@ -121,6 +121,35 @@ class EnrichLeadTests(unittest.TestCase):
         self.assertIn("Official website match is ambiguous", warnings)
         self.assertTrue(verification["verified"])
 
+    def test_parse_page_extracts_mailto_tel_and_jsonld(self):
+        original_fetch = mod.fetch
+        try:
+            mod.fetch = lambda url: '''
+                <html>
+                  <head>
+                    <title>Acme</title>
+                    <script type="application/ld+json">{"email":"schema@acme.com","telephone":"+49 30 777777"}</script>
+                  </head>
+                  <body>
+                    <a href="mailto:hello@acme.com">Email</a>
+                    <a href="tel:+49 30 123456">Call</a>
+                    Contact us at support@acme.com
+                  </body>
+                </html>
+            '''
+            parsed, err = mod.parse_page("https://acme.com", "acme.com")
+        finally:
+            mod.fetch = original_fetch
+        self.assertIsNone(err)
+        emails = [record["value"] for record in parsed["emails"]]
+        phones = [record["value"] for record in parsed["phones"]]
+        self.assertIn("schema@acme.com", emails)
+        self.assertIn("hello@acme.com", emails)
+        self.assertIn("support@acme.com", emails)
+        self.assertIn("+49 30 777777", phones)
+        self.assertIn("+49 30 123456", phones)
+        self.assertEqual(parsed["emails"][0]["source_type"], "jsonld")
+
     def test_enrich_returns_sources_for_contacts_and_summary(self):
         original_build_queries = mod.build_queries
         original_search_query = mod.search_query

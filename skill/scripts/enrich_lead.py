@@ -9,6 +9,7 @@ import urllib.parse
 import urllib.request
 from collections import OrderedDict
 from html.parser import HTMLParser
+from urllib.parse import unquote
 
 UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123 Safari/537.36"
 SEARCH_URL = "https://html.duckduckgo.com/html/?q={query}"
@@ -43,6 +44,9 @@ class LinkParser(HTMLParser):
         self.links = []
         self.title = []
         self._in_title = False
+        self.json_ld_blocks = []
+        self._capture_json_ld = False
+        self._json_ld_buffer = []
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
@@ -50,14 +54,25 @@ class LinkParser(HTMLParser):
             self.links.append(attrs["href"])
         elif tag == "title":
             self._in_title = True
+        elif tag == "script" and (attrs.get("type") or "").lower() == "application/ld+json":
+            self._capture_json_ld = True
+            self._json_ld_buffer = []
 
     def handle_endtag(self, tag):
         if tag == "title":
             self._in_title = False
+        elif tag == "script" and self._capture_json_ld:
+            block = "".join(self._json_ld_buffer).strip()
+            if block:
+                self.json_ld_blocks.append(block)
+            self._capture_json_ld = False
+            self._json_ld_buffer = []
 
     def handle_data(self, data):
         if self._in_title:
             self.title.append(data)
+        if self._capture_json_ld:
+            self._json_ld_buffer.append(data)
 
 
 def dedupe(items):
@@ -220,6 +235,59 @@ def choose_site(company, region, explicit_domain, query_results):
     return chosen, domain_of(chosen), warnings, snippets[:5], verification
 
 
+def normalize_phone(phone):
+    phone = re.sub(r"\s+", " ", (phone or "").strip())
+    return phone.strip(" .,-") or None
+
+
+def extract_json_ld_contacts(blocks, url):
+    emails = []
+    phones = []
+    for block in blocks:
+        try:
+            data = json.loads(block)
+        except Exception:
+            continue
+        items = data if isinstance(data, list) else [data]
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            for key in ("email", "telephone", "phone"):
+                value = item.get(key)
+                if not value:
+                    continue
+                values = value if isinstance(value, list) else [value]
+                for entry in values:
+                    if not isinstance(entry, str):
+                        continue
+                    if key == "email":
+                        email = entry.replace("mailto:", "").strip().lower()
+                        if EMAIL_RE.fullmatch(email):
+                            emails.append({"value": email, "source_url": url, "source_type": "jsonld"})
+                    else:
+                        phone = normalize_phone(entry.replace("tel:", ""))
+                        if phone:
+                            phones.append({"value": phone, "source_url": url, "source_type": "jsonld"})
+    return dedupe_records(emails, ("value",)), dedupe_records(phones, ("value",))
+
+
+def extract_mailto_tel_links(links, url):
+    emails = []
+    phones = []
+    for href in links:
+        raw = html.unescape(href or "")
+        lower = raw.lower()
+        if lower.startswith("mailto:"):
+            email = unquote(raw.split(":", 1)[1].split("?", 1)[0]).strip().lower()
+            if EMAIL_RE.fullmatch(email):
+                emails.append({"value": email, "source_url": url, "source_type": "mailto"})
+        elif lower.startswith("tel:"):
+            phone = normalize_phone(unquote(raw.split(":", 1)[1].split("?", 1)[0]))
+            if phone:
+                phones.append({"value": phone, "source_url": url, "source_type": "tel"})
+    return dedupe_records(emails, ("value",)), dedupe_records(phones, ("value",))
+
+
 def parse_page(url, base_domain):
     result = {
         "title": None,
@@ -242,20 +310,26 @@ def parse_page(url, base_domain):
     text = clean_text(raw)
     result["title"] = clean_text(" ".join(parser.title))[:140] if parser.title else None
     result["summary_text"] = text[:2000]
-    result["emails"] = dedupe_records([
+    regex_emails = dedupe_records([
         {"value": e.lower(), "source_url": url, "source_type": "page"}
         for e in EMAIL_RE.findall(raw)
         if not e.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))
-    ], ("value",))[:10]
-    result["phones"] = dedupe_records([
-        {"value": p.strip(), "source_url": url, "source_type": "page"}
+    ], ("value",))
+    regex_phones = dedupe_records([
+        {"value": normalize_phone(p), "source_url": url, "source_type": "page"}
         for p in PHONE_RE.findall(text)
-    ], ("value",))[:10]
+        if normalize_phone(p)
+    ], ("value",))
 
     links = []
     for href in parser.links:
         full = urllib.parse.urljoin(url, html.unescape(href))
         links.append(full)
+    jsonld_emails, jsonld_phones = extract_json_ld_contacts(parser.json_ld_blocks, url)
+    mailto_emails, tel_phones = extract_mailto_tel_links(parser.links, url)
+
+    result["emails"] = dedupe_records(jsonld_emails + mailto_emails + regex_emails, ("value",))[:10]
+    result["phones"] = dedupe_records(jsonld_phones + tel_phones + regex_phones, ("value",))[:10]
     result["contact_pages"] = dedupe_records([
         {"value": link, "source_url": url, "source_type": "page"}
         for link in links
