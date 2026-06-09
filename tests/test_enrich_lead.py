@@ -20,10 +20,16 @@ class EnrichLeadTests(unittest.TestCase):
             "https://acme-logistics.de/contact",
             "https://directory.example/acme"
         ], ["snippet"])]
-        chosen, domain, warnings, snippets = mod.choose_site("Acme Logistics", "Berlin", None, results)
+        original_verify = mod.verify_site_identity
+        mod.verify_site_identity = lambda url, company, region=None: {"verified": True, "score": 2.5, "title": "Acme Logistics", "reason": None}
+        try:
+            chosen, domain, warnings, snippets, verification = mod.choose_site("Acme Logistics", "Berlin", None, results)
+        finally:
+            mod.verify_site_identity = original_verify
         self.assertEqual(domain, "acme-logistics.de")
         self.assertEqual(warnings, [])
         self.assertEqual(snippets, ["snippet"])
+        self.assertTrue(verification["verified"])
 
     def test_choose_best_contacts_prefers_official_non_weak_email(self):
         emails, best, meta, best_record, _ = mod.choose_best_contacts([
@@ -57,9 +63,11 @@ class EnrichLeadTests(unittest.TestCase):
         original_build_queries = mod.build_queries
         original_search_query = mod.search_query
         original_parse_page = mod.parse_page
+        original_verify_site_identity = mod.verify_site_identity
         try:
             mod.build_queries = lambda company, region=None, domain=None, mode="smart": ["Acme"]
             mod.search_query = lambda query: (["https://acme.com"], ["Acme makes tools for field teams."])
+            mod.verify_site_identity = lambda url, company, region=None: {"verified": True, "score": 2.5, "title": "Acme", "reason": None}
 
             def fake_parse_page(url, base_domain):
                 if url == "https://acme.com":
@@ -82,6 +90,7 @@ class EnrichLeadTests(unittest.TestCase):
             mod.build_queries = original_build_queries
             mod.search_query = original_search_query
             mod.parse_page = original_parse_page
+            mod.verify_site_identity = original_verify_site_identity
 
         self.assertEqual(result["best_contact_email"], "jobs@acme.com")
         self.assertEqual(result["best_contact_source"]["source_url"], "https://acme.com")
@@ -93,13 +102,34 @@ class EnrichLeadTests(unittest.TestCase):
         self.assertIn("longer snippet", out["value"])
         self.assertEqual(out["source_type"], "serp")
 
+    def test_choose_site_warns_on_ambiguous_match(self):
+        results = [([
+            "https://acme-tools.com",
+            "https://acme-group.com"
+        ], ["Acme tools official site", "Acme group software company"])]
+        original_verify = mod.verify_site_identity
+        try:
+            scores = {
+                "https://acme-tools.com": {"verified": True, "score": 2.0, "title": "Acme Tools", "reason": None},
+                "https://acme-group.com": {"verified": True, "score": 2.1, "title": "Acme Group", "reason": None},
+            }
+            mod.verify_site_identity = lambda url, company, region=None: scores[url]
+            chosen, domain, warnings, snippets, verification = mod.choose_site("Acme", None, None, results)
+        finally:
+            mod.verify_site_identity = original_verify
+        self.assertEqual(domain, "acme-group.com")
+        self.assertIn("Official website match is ambiguous", warnings)
+        self.assertTrue(verification["verified"])
+
     def test_enrich_returns_sources_for_contacts_and_summary(self):
         original_build_queries = mod.build_queries
         original_search_query = mod.search_query
         original_parse_page = mod.parse_page
+        original_verify_site_identity = mod.verify_site_identity
         try:
             mod.build_queries = lambda company, region=None, domain=None, mode="smart": ["Acme"]
             mod.search_query = lambda query: (["https://acme.com"], ["Acme makes tools for field teams."])
+            mod.verify_site_identity = lambda url, company, region=None: {"verified": True, "score": 2.5, "title": "Acme", "reason": None}
 
             def fake_parse_page(url, base_domain):
                 if url == "https://acme.com":
@@ -128,11 +158,13 @@ class EnrichLeadTests(unittest.TestCase):
             mod.build_queries = original_build_queries
             mod.search_query = original_search_query
             mod.parse_page = original_parse_page
+            mod.verify_site_identity = original_verify_site_identity
 
         self.assertEqual(result["best_contact_email"], "hello@acme.com")
         self.assertEqual(result["email_sources"]["sales@acme.com"]["source_url"], "https://acme.com/contact")
         self.assertEqual(result["phone_sources"]["+49 30 123456"]["source_url"], "https://acme.com")
         self.assertEqual(result["summary_source"]["source_url"], "https://acme.com")
+        self.assertTrue(result["site_verification"]["verified"])
 
 
 if __name__ == "__main__":

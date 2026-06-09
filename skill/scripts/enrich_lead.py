@@ -124,7 +124,7 @@ def search_query(query):
     return [html.unescape(u) for u in urls], snippets
 
 
-def score_candidate(url, company, region=None):
+def score_candidate(url, company, region=None, snippet=None):
     dom = domain_of(url)
     if not dom:
         return -999
@@ -133,36 +133,91 @@ def score_candidate(url, company, region=None):
     score = 0
     cname = re.sub(r"[^a-zа-я0-9]", "", company.lower())
     droot = re.sub(r"[^a-zа-я0-9]", "", dom)
+    snippet_text = (snippet or "").lower()
+    company_words = [w for w in re.split(r"\W+", company.lower()) if len(w) > 2]
     if cname:
         if cname[:8] and cname[:8] in droot:
             score += 4
         elif droot[:8] and droot[:8] in cname:
             score += 3
-    if region and region.lower() in url.lower():
+    matches = sum(1 for word in company_words[:4] if word in dom or word in snippet_text)
+    score += min(3, matches)
+    if region and (region.lower() in url.lower() or region.lower() in snippet_text):
         score += 1
+    if any(token in url.lower() for token in CONTACT_HINTS):
+        score += 0.5
     if dom.endswith(".ru") or dom.endswith(".com") or dom.endswith(".ai"):
         score += 0.5
     return score
+
+
+def verify_site_identity(url, company, region=None):
+    dom = domain_of(url)
+    company_words = [w for w in re.split(r"\W+", company.lower()) if len(w) > 2]
+    result = {
+        "verified": False,
+        "score": 0.0,
+        "title": None,
+        "reason": None,
+    }
+    try:
+        parsed, err = parse_page(url, dom)
+        if err:
+            result["reason"] = err
+            return result
+    except Exception as e:
+        result["reason"] = str(e)
+        return result
+    title = (parsed.get("title") or "").lower()
+    text = (parsed.get("summary_text") or "").lower()
+    result["title"] = parsed.get("title")
+    score = 0.0
+    if any(word in dom for word in company_words):
+        score += 1.5
+    score += min(2.0, sum(0.75 for word in company_words[:4] if word in title))
+    score += min(2.0, sum(0.5 for word in company_words[:4] if word in text[:800]))
+    if region and region.lower() in text[:800]:
+        score += 0.5
+    result["score"] = round(score, 2)
+    result["verified"] = score >= 2.0
+    if not result["verified"]:
+        result["reason"] = "weak company match on candidate site"
+    return result
 
 
 def choose_site(company, region, explicit_domain, query_results):
     warnings = []
     if explicit_domain:
         clean = explicit_domain.lower().removeprefix("www.")
-        return f"https://{clean}", clean, warnings, query_results[0][1] if query_results else []
+        return f"https://{clean}", clean, warnings, query_results[0][1] if query_results else [], None
 
     seen = []
     snippets = []
     for urls, snips in query_results:
         snippets.extend(snips)
-        for url in urls:
-            seen.append((score_candidate(url, company, region), url))
-    seen.sort(reverse=True)
+        for idx, url in enumerate(urls):
+            snippet = snips[idx] if idx < len(snips) else ""
+            seen.append((score_candidate(url, company, region, snippet), url, snippet))
+    seen.sort(key=lambda item: item[0], reverse=True)
     if not seen or seen[0][0] < 0:
         warnings.append("No strong official website match found")
-        return None, None, warnings, snippets[:5]
-    chosen = seen[0][1]
-    return chosen, domain_of(chosen), warnings, snippets[:5]
+        return None, None, warnings, snippets[:5], None
+
+    top_candidates = seen[:2]
+    verified = []
+    for score, url, snippet in top_candidates:
+        verification = verify_site_identity(url, company, region)
+        verified.append((score + verification["score"], url, snippet, verification))
+    verified.sort(key=lambda item: item[0], reverse=True)
+    chosen_score, chosen, _, verification = verified[0]
+    if not verification["verified"]:
+        warnings.append("Official website candidate could not be strongly verified")
+    if len(verified) > 1 and abs(verified[0][0] - verified[1][0]) < 1.0:
+        warnings.append("Official website match is ambiguous")
+    if chosen_score < 1.0:
+        warnings.append("No strong official website match found")
+        return None, None, warnings, snippets[:5], verification
+    return chosen, domain_of(chosen), warnings, snippets[:5], verification
 
 
 def parse_page(url, base_domain):
@@ -352,7 +407,7 @@ def enrich(company, region=None, domain=None, query_mode="smart"):
         except Exception as e:
             warnings.append(f"search failed for '{query}': {e}")
     query_str = queries[0] if queries else company
-    site_url, primary_domain, choose_warnings, snippets = choose_site(company, region, domain, query_results)
+    site_url, primary_domain, choose_warnings, snippets, site_verification = choose_site(company, region, domain, query_results)
     warnings.extend(choose_warnings)
 
     website_title = None
@@ -405,6 +460,7 @@ def enrich(company, region=None, domain=None, query_mode="smart"):
         "query": query_str,
         "primary_domain": primary_domain,
         "website_title": website_title,
+        "site_verification": site_verification,
         "summary": summary_record["value"] if summary_record else None,
         "summary_source": {
             "source_url": summary_record.get("source_url"),
