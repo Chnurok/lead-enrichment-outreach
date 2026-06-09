@@ -65,7 +65,63 @@
     },
     "warnings": [
       "Best available email looks weak for outreach: press@mistral.ai"
-    ]
+    ],
+    "site_candidates": [
+      {
+        "url": "https://mistral.ai",
+        "domain": "mistral.ai",
+        "base_score": 4.5,
+        "verification_score": 3.25,
+        "combined_score": 7.75,
+        "verified": true,
+        "title": "Frontier AI LLMs, assistants, agents, services | Mistral AI",
+        "reason": null,
+        "snippet": null
+      }
+    ],
+    "review": {
+      "status": "review_required",
+      "ready_for_outreach": false,
+      "reasons": [
+        "Best available contact looks weak for outreach",
+        "Dossier needs human review before outreach"
+      ],
+      "next_step": "review sources and edit the dossier before using any outreach draft",
+      "top_contact_candidates": [
+        {
+          "email": "press@mistral.ai",
+          "score": 75,
+          "official": true,
+          "weak": true,
+          "strong": false,
+          "tier": "official_weak",
+          "source": {
+            "source_url": "https://mistral.ai/contact",
+            "source_type": "page"
+          },
+          "reasons": [
+            "matches primary domain",
+            "local part looks weak for outreach"
+          ]
+        },
+        {
+          "email": "privacy@mistral.ai",
+          "score": 75,
+          "official": true,
+          "weak": true,
+          "strong": false,
+          "tier": "official_weak",
+          "source": {
+            "source_url": "https://mistral.ai/privacy",
+            "source_type": "page"
+          },
+          "reasons": [
+            "matches primary domain",
+            "local part looks weak for outreach"
+          ]
+        }
+      ]
+    }
   },
   {
     "company": "DeepL",
@@ -126,6 +182,43 @@
         "tier": "official_strong"
       }
     },
-    "warnings": []
+    "warnings": [],
+    "site_candidates": [
+      {
+        "url": "https://www.deepl.com",
+        "domain": "deepl.com",
+        "base_score": 4.5,
+        "verification_score": 2.75,
+        "combined_score": 7.25,
+        "verified": true,
+        "title": "DeepL AI Platform: Translation, Voice & API",
+        "reason": null,
+        "snippet": null
+      }
+    ],
+    "review": {
+      "status": "ready",
+      "ready_for_outreach": true,
+      "reasons": [],
+      "next_step": "draft outreach and personalize it before sending",
+      "top_contact_candidates": [
+        {
+          "email": "support@deepl.com",
+          "score": 125,
+          "official": true,
+          "weak": false,
+          "strong": true,
+          "tier": "official_strong",
+          "source": {
+            "source_url": "https://www.deepl.com/contact",
+            "source_type": "page"
+          },
+          "reasons": [
+            "matches primary domain",
+            "local part looks outreach-friendly"
+          ]
+        }
+      ]
+    }
   }
 ]

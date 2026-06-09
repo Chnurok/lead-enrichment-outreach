@@ -397,19 +397,81 @@ def rank_contact_email(email, primary_domain):
     return score, meta
 
 
+def explain_contact_score(meta):
+    reasons = []
+    if meta["official"]:
+        reasons.append("matches primary domain")
+    else:
+        reasons.append("does not match primary domain")
+    if meta["strong"]:
+        reasons.append("local part looks outreach-friendly")
+    if meta["weak"]:
+        reasons.append("local part looks weak for outreach")
+    if not meta["strong"] and not meta["weak"]:
+        reasons.append("local part is neutral")
+    return reasons
+
+
 def choose_best_contacts(emails, primary_domain):
     ranked = []
     unique = dedupe_records(emails, ("value",))
     for record in unique:
         email = record["value"]
         score, meta = rank_contact_email(email, primary_domain)
-        ranked.append((score, email, meta, record))
+        ranked.append((score, email, meta, record, explain_contact_score(meta)))
     ranked.sort(key=lambda item: (-item[0], item[1]))
-    ordered = [email for _, email, _, _ in ranked]
+    ordered = [email for _, email, _, _, _ in ranked]
     best = ordered[0] if ordered else None
     meta = ranked[0][2] if ranked else None
     best_record = ranked[0][3] if ranked else None
     return ordered, best, meta, best_record, ranked
+
+
+def build_contact_review(ranked_contacts):
+    review = []
+    for score, email, meta, record, reasons in ranked_contacts[:5]:
+        review.append({
+            "email": email,
+            "score": score,
+            "official": meta["official"],
+            "weak": meta["weak"],
+            "strong": meta["strong"],
+            "tier": meta["tier"],
+            "source": {
+                "source_url": record.get("source_url"),
+                "source_type": record.get("source_type"),
+            },
+            "reasons": reasons,
+        })
+    return review
+
+
+def build_site_candidates(company, region, query_results):
+    candidates = []
+    seen = OrderedDict()
+    for urls, snips in query_results:
+        for idx, url in enumerate(urls):
+            dom = domain_of(url)
+            if not dom or dom in seen:
+                continue
+            snippet = snips[idx] if idx < len(snips) else ""
+            base_score = score_candidate(url, company, region, snippet)
+            seen[dom] = (url, snippet, base_score)
+    for dom, (url, snippet, base_score) in list(seen.items())[:5]:
+        verification = verify_site_identity(url, company, region)
+        candidates.append({
+            "url": url,
+            "domain": dom,
+            "base_score": round(base_score, 2),
+            "verification_score": round(verification.get("score", 0.0), 2),
+            "combined_score": round(base_score + verification.get("score", 0.0), 2),
+            "verified": bool(verification.get("verified")),
+            "title": verification.get("title"),
+            "reason": verification.get("reason"),
+            "snippet": snippet[:180] if snippet else None,
+        })
+    candidates.sort(key=lambda item: item["combined_score"], reverse=True)
+    return candidates
 
 
 def cleanup_summary_text(text):
@@ -497,6 +559,42 @@ def compute_confidence(domain, emails, phones, summary, warnings, best_contact_m
     return round(max(0.0, min(1.0, score)), 2), signals
 
 
+def build_review_result(result, ranked_contacts):
+    reasons = []
+    blockers = []
+    if not result.get("primary_domain"):
+        blockers.append("No primary domain was identified")
+    if not (result.get("site_verification") or {}).get("verified"):
+        reasons.append("Official site could not be strongly verified")
+    if not result.get("best_contact_email"):
+        blockers.append("No outreach email was found")
+    best = result.get("trust_signals", {}).get("best_contact", {})
+    if best.get("weak"):
+        reasons.append("Best available contact looks weak for outreach")
+    if result.get("confidence", 0) < 0.45:
+        blockers.append("Overall dossier confidence is too low")
+    elif result.get("confidence", 0) < 0.7:
+        reasons.append("Dossier needs human review before outreach")
+
+    if blockers:
+        status = "blocked"
+        next_step = "find a better official site or stronger contact before drafting outreach"
+    elif reasons:
+        status = "review_required"
+        next_step = "review sources and edit the dossier before using any outreach draft"
+    else:
+        status = "ready"
+        next_step = "draft outreach and personalize it before sending"
+
+    return {
+        "status": status,
+        "ready_for_outreach": status == "ready",
+        "reasons": blockers + reasons,
+        "next_step": next_step,
+        "top_contact_candidates": build_contact_review(ranked_contacts),
+    }
+
+
 def enrich(company, region=None, domain=None, query_mode="smart"):
     queries = build_queries(company, region, domain, query_mode)
     query_results = []
@@ -510,6 +608,7 @@ def enrich(company, region=None, domain=None, query_mode="smart"):
     query_str = queries[0] if queries else company
     site_url, primary_domain, choose_warnings, snippets, site_verification = choose_site(company, region, domain, query_results)
     warnings.extend(choose_warnings)
+    site_candidates = [] if domain else build_site_candidates(company, region, query_results)
 
     website_title = None
     summary_record = None
@@ -547,7 +646,7 @@ def enrich(company, region=None, domain=None, query_mode="smart"):
         warnings.append(f"Best available email looks weak for outreach: {best_email}")
     if ordered_emails and (not best_contact_meta or not best_contact_meta["official"]):
         warnings.append("No official-domain outreach email found")
-    if ordered_emails and all(meta["weak"] for _, _, meta, _ in ranked_contacts):
+    if ordered_emails and all(meta["weak"] for _, _, meta, _, _ in ranked_contacts):
         warnings.append("Only weak outreach contacts found")
 
     phone_values = [record["value"] for record in dedupe_records(phones, ("value",))[:10]]
@@ -562,6 +661,7 @@ def enrich(company, region=None, domain=None, query_mode="smart"):
         "primary_domain": primary_domain,
         "website_title": website_title,
         "site_verification": site_verification,
+        "site_candidates": site_candidates,
         "summary": summary_record["value"] if summary_record else None,
         "summary_source": {
             "source_url": summary_record.get("source_url"),
@@ -581,6 +681,7 @@ def enrich(company, region=None, domain=None, query_mode="smart"):
         "snippets": snippets[:5],
         "confidence": 0.0,
         "trust_signals": {},
+        "review": {},
         "warnings": dedupe(warnings),
     }
     result["confidence"], result["trust_signals"] = compute_confidence(
@@ -592,6 +693,7 @@ def enrich(company, region=None, domain=None, query_mode="smart"):
         best_contact_meta,
         site_verification,
     )
+    result["review"] = build_review_result(result, ranked_contacts)
     return result
 
 

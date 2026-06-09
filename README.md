@@ -2,45 +2,38 @@
 
 ![Preview](assets/preview.svg)
 
-Turn a company name into a reviewable outreach dossier and a usable first-draft email.
+Turn a company name into a reviewable outreach dossier — and only draft outreach when the evidence is good enough.
 
 A lightweight Python toolkit first, with an optional OpenClaw skill for the same workflow.
 
-## Who this is for
+## Why this is useful
 
-- Python users who want inspectable enrichment output
-- OpenClaw users building research or outreach workflows
-- technical operators who are fine reviewing JSON before acting on it
+A lot of lead-enrichment demos look impressive right until they pick the wrong site, surface `press@`, and confidently generate a bad email.
+
+This repo is opinionated in the other direction:
+
+- prefer reviewable output over black-box confidence
+- show *why* a site or contact was chosen
+- warn when the dossier is too weak
+- refuse draft generation by default when trust is low
+
+## What you get
+
+- company → dossier JSON
+- site verification score + candidate list
+- contact ranking with reasons and source attribution
+- review verdict: `ready`, `review_required`, or `blocked`
+- safer outreach drafting with a fail-closed default
 
 ## 10-second example
 
 ```bash
-python3 skill/scripts/enrich_lead.py --company "Mistral AI" --domain mistral.ai > dossier.json
-python3 skill/scripts/generate_outreach.py dossier.json --offer "AI-assisted lead enrichment and outreach" > draft.json
+python3 skill/scripts/enrich_lead.py --company "DeepL" > dossier.json
+python3 skill/scripts/generate_outreach.py dossier.json \
+  --offer "AI-assisted lead enrichment and outreach"
 ```
 
-What you get back:
-
-- a likely official domain
-- visible contact paths from public pages
-- a best-contact guess
-- source attribution and warnings
-- an editable first-draft outreach email
-
-Example dossier snippet:
-
-```json
-{
-  "primary_domain": "mistral.ai",
-  "best_contact_email": "press@mistral.ai",
-  "site_verification": { "verified": true, "score": 3.25 },
-  "trust_signals": {
-    "site_verified": true,
-    "best_contact": { "official": true, "weak": true, "tier": "official_weak" }
-  },
-  "warnings": ["Best available email looks weak for outreach: press@mistral.ai"]
-}
-```
+If the dossier is weak, the second command stops instead of bluffing.
 
 ## Quick start
 
@@ -57,46 +50,71 @@ python3 -m unittest discover -s tests -q
 
 1. Start with a company name and, when available, a domain.
 2. Generate one dossier.
-3. Review the JSON for weak matches or bad contacts.
-4. Generate one draft from the reviewed dossier.
-5. Edit the final message like a human before using it.
+3. Check `review.status` before doing anything else.
+4. Inspect sources, warnings, and top contact candidates.
+5. Draft outreach only when the dossier is `ready`, or consciously override after manual review.
 
-## What to check in the dossier
-
-- `primary_domain` looks plausible
-- `site_verification.verified` is true or at least believable
-- `best_contact_email` is not a weak target like `press@` or `privacy@`
-- `summary_source`, `email_sources`, and `phone_sources` point to believable pages
-- `trust_signals` and `warnings` match your own intuition
-
-## Output shape
+## Output shape that matters
 
 The enrichment output includes trust-oriented fields such as:
 
 - `site_verification`
+- `site_candidates`
 - `best_contact_email`
 - `best_contact_source`
-- `summary_source`
 - `email_sources`
 - `phone_sources`
 - `trust_signals`
+- `review`
 - `warnings`
 
-The point is not just to return data, but to make the result reviewable.
+Example review block:
 
-## Examples
+```json
+{
+  "review": {
+    "status": "review_required",
+    "ready_for_outreach": false,
+    "reasons": [
+      "Best available contact looks weak for outreach",
+      "Dossier needs human review before outreach"
+    ],
+    "next_step": "review sources and edit the dossier before using any outreach draft"
+  }
+}
+```
 
-- `demo-leads.csv` — tiny batch input
-- `demo-output.json` — trimmed dossier examples with trust-oriented fields visible
-- `openai-dossier.json` — single credible dossier example
-- `openai-draft.json` — restrained draft example
-- `ab-report.json` — illustrative only, not benchmark evidence
+## Examples worth opening
+
+- `examples/openai-dossier.json` — credible dossier with a deliberate weak-contact warning
+- `examples/demo-output.json` — side-by-side `review_required` and `ready` examples
+- `examples/deepl-draft.json` — draft from a dossier that passed the trust gate
+- `examples/openai-draft.json` — illustrative override case for a weak but official contact
+
+## Safer drafting behavior
+
+Default behavior:
+
+```bash
+python3 skill/scripts/generate_outreach.py openai-dossier.json \
+  --offer "AI-assisted lead enrichment and outreach"
+```
+
+Expected result: non-zero exit with a refusal message, because the dossier is not ready.
+
+Override only after manual review:
+
+```bash
+python3 skill/scripts/generate_outreach.py openai-dossier.json \
+  --offer "AI-assisted lead enrichment and outreach" \
+  --allow-review-required
+```
 
 ## Repo layout
 
 - `skill/` — installable OpenClaw skill
-- `skill/scripts/` — enrichment and draft-generation scripts
-- `tests/` — unit tests plus a lightweight query-mode harness
+- `skill/scripts/` — enrichment, batch processing, and draft-generation scripts
+- `tests/` — unit tests around ranking, summaries, trust, and draft gating
 - `examples/` — curated public examples
 
 ## Reliability notes
@@ -118,6 +136,10 @@ python3 /usr/lib/node_modules/openclaw/skills/skill-creator/scripts/package_skil
 ```
 
 `dist/` is generated during packaging and is not meant to stay committed.
+
+## Release notes
+
+See `CHANGELOG.md` for the latest upgrade notes.
 
 ## License
 

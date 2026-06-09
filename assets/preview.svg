@@ -3,11 +3,12 @@
   <rect x="48" y="48" width="1184" height="544" rx="28" fill="#11182D" stroke="#26314F"/>
 
   <text x="88" y="104" fill="#9FB2D9" font-family="Arial, sans-serif" font-size="26" font-weight="700">Lead Enrichment Outreach</text>
-  <text x="88" y="168" fill="#F4F7FF" font-family="Arial, sans-serif" font-size="54" font-weight="700">Turn a company name into a reviewable dossier</text>
-  <text x="88" y="212" fill="#90A4CE" font-family="Arial, sans-serif" font-size="24">Find the likely official site, surface usable contacts, and draft a first outreach email.</text>
+  <text x="88" y="164" fill="#F4F7FF" font-family="Arial, sans-serif" font-size="36" font-weight="700">Build a lead dossier</text>
+  <text x="88" y="202" fill="#F4F7FF" font-family="Arial, sans-serif" font-size="36" font-weight="700">before drafting outreach</text>
+  <text x="88" y="236" fill="#90A4CE" font-family="Arial, sans-serif" font-size="19">Verify the site, rank contacts, and stop weak drafts by default.</text>
 
-  <rect x="88" y="244" width="170" height="40" rx="20" fill="#1D6BFF"/>
-  <text x="113" y="269" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="20" font-weight="700">search + parse</text>
+  <rect x="88" y="270" width="170" height="40" rx="20" fill="#1D6BFF"/>
+  <text x="113" y="295" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="20" font-weight="700">search + parse</text>
 
   <rect x="630" y="110" width="520" height="380" rx="24" fill="#0E1528" stroke="#253252"/>
   <text x="664" y="154" fill="#F4F7FF" font-family="Arial, sans-serif" font-size="28" font-weight="700">Example dossier</text>
@@ -17,16 +18,16 @@
   <text x="930" y="232" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="21" font-weight="700">press@mistral.ai</text>
   <text x="664" y="268" fill="#90A4CE" font-family="Arial, sans-serif" font-size="21">site verified</text>
   <text x="930" y="268" fill="#7DE2A5" font-family="Arial, sans-serif" font-size="21" font-weight="700">yes</text>
-  <text x="664" y="304" fill="#90A4CE" font-family="Arial, sans-serif" font-size="21">review signals</text>
-  <text x="930" y="304" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="21" font-weight="700">warnings + sources</text>
+  <text x="664" y="304" fill="#90A4CE" font-family="Arial, sans-serif" font-size="21">review verdict</text>
+  <text x="930" y="304" fill="#FFD479" font-family="Arial, sans-serif" font-size="21" font-weight="700">review_required</text>
 
   <rect x="664" y="336" width="452" height="112" rx="18" fill="#111C33"/>
-  <text x="688" y="372" fill="#F4F7FF" font-family="Arial, sans-serif" font-size="22" font-weight="700">First outreach draft</text>
-  <text x="688" y="406" fill="#90A4CE" font-family="Arial, sans-serif" font-size="19">Short, editable opener with grounded company context</text>
+  <text x="688" y="372" fill="#F4F7FF" font-family="Arial, sans-serif" font-size="22" font-weight="700">Safer draft generation</text>
+  <text x="688" y="406" fill="#90A4CE" font-family="Arial, sans-serif" font-size="19">Refuses weak dossiers by default; allows explicit override after review</text>
 
-  <rect x="88" y="336" width="470" height="154" rx="24" fill="#0E1528" stroke="#253252"/>
-  <text x="120" y="382" fill="#F4F7FF" font-family="Arial, sans-serif" font-size="30" font-weight="700">Why it feels safer to use</text>
-  <text x="120" y="420" fill="#90A4CE" font-family="Arial, sans-serif" font-size="21">• likely official site selection</text>
-  <text x="120" y="452" fill="#90A4CE" font-family="Arial, sans-serif" font-size="21">• contact quality ranking</text>
-  <text x="120" y="484" fill="#90A4CE" font-family="Arial, sans-serif" font-size="21">• field-level sources and warnings</text>
+  <rect x="88" y="346" width="470" height="170" rx="24" fill="#0E1528" stroke="#253252"/>
+  <text x="120" y="392" fill="#F4F7FF" font-family="Arial, sans-serif" font-size="30" font-weight="700">Why it feels safer to use</text>
+  <text x="120" y="430" fill="#90A4CE" font-family="Arial, sans-serif" font-size="21">• explainable site candidate scoring</text>
+  <text x="120" y="462" fill="#90A4CE" font-family="Arial, sans-serif" font-size="21">• contact ranking with reasons</text>
+  <text x="120" y="494" fill="#90A4CE" font-family="Arial, sans-serif" font-size="21">• review gate before draft generation</text>
 </svg>

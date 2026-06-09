@@ -1,4 +1,7 @@
 import importlib.util
+import json
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -38,6 +41,44 @@ class GenerateOutreachTests(unittest.TestCase):
         dossier = {"contact_pages": ["https://acme.com/contact"], "social_links": ["https://linkedin.com/company/acme"]}
         self.assertEqual(mod.choose_contact(dossier), "https://acme.com/contact")
         self.assertEqual(mod.choose_contact({"social_links": dossier["social_links"]}), "https://linkedin.com/company/acme")
+
+    def test_dossier_is_ready_uses_review_status(self):
+        self.assertTrue(mod.dossier_is_ready({"review": {"status": "ready"}}))
+        self.assertFalse(mod.dossier_is_ready({"review": {"status": "review_required"}}))
+
+    def test_cli_refuses_weak_dossier_without_override(self):
+        dossier = {
+            "company": "Acme",
+            "summary": "Acme provides logistics services.",
+            "review": {"status": "review_required", "reasons": ["Best available contact looks weak for outreach"]},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            dossier_path = Path(tmp) / "dossier.json"
+            dossier_path.write_text(json.dumps(dossier), encoding="utf-8")
+            proc = subprocess.run([
+                "python3", str(SCRIPT), str(dossier_path),
+                "--offer", "AI-assisted outreach workflows"
+            ], capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("Refusing to draft outreach", proc.stderr)
+
+    def test_cli_allows_override_for_review_required_dossier(self):
+        dossier = {
+            "company": "Acme",
+            "summary": "Acme provides logistics services.",
+            "emails": ["hi@acme.com"],
+            "review": {"status": "review_required", "reasons": ["Needs review"]},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            dossier_path = Path(tmp) / "dossier.json"
+            dossier_path.write_text(json.dumps(dossier), encoding="utf-8")
+            proc = subprocess.run([
+                "python3", str(SCRIPT), str(dossier_path),
+                "--offer", "AI-assisted outreach workflows",
+                "--allow-review-required"
+            ], capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 0)
+        self.assertIn("Idea for Acme's outreach flow", proc.stdout)
 
 
 if __name__ == "__main__":

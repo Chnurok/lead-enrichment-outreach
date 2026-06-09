@@ -58,6 +58,15 @@ def first_sentence(text):
     return line[0].lower() + line[1:] if len(line) > 1 else line.lower()
 
 
+def dossier_is_ready(dossier):
+    review = dossier.get("review") or {}
+    if review.get("status"):
+        return review.get("status") == "ready"
+    confidence = dossier.get("confidence") or 0
+    best = ((dossier.get("trust_signals") or {}).get("best_contact") or {})
+    return confidence >= 0.7 and best.get("official") and not best.get("weak")
+
+
 def draft(dossier, offer, cta):
     company = dossier.get("company", "your company")
     summary = (dossier.get("summary") or "").strip()
@@ -86,10 +95,17 @@ def main():
     ap.add_argument("dossier_json", help="Path to the reviewed dossier JSON")
     ap.add_argument("--offer", required=True, help="Short description of the service or offer")
     ap.add_argument("--cta", default="Would a 10-minute intro next week be useful?", help="Single clear call to action")
+    ap.add_argument("--allow-review-required", action="store_true", help="Allow draft generation even when the dossier still needs review")
     args = ap.parse_args()
 
     with open(args.dossier_json, encoding="utf-8") as fh:
         dossier = json.load(fh)
+    if not args.allow_review_required and not dossier_is_ready(dossier):
+        review = dossier.get("review") or {}
+        reason = "; ".join(review.get("reasons") or []) or "dossier is not ready for outreach"
+        sys.stderr.write(f"Refusing to draft outreach: {reason}\n")
+        sys.stderr.write("Re-run with --allow-review-required if you want a draft anyway after manual review.\n")
+        raise SystemExit(2)
     json.dump(draft(dossier, args.offer, args.cta), sys.stdout, ensure_ascii=False, indent=2)
     sys.stdout.write("\n")
 

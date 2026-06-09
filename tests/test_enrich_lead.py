@@ -43,6 +43,16 @@ class EnrichLeadTests(unittest.TestCase):
         self.assertFalse(meta["weak"])
         self.assertEqual(best_record["source_url"], "https://acme.com")
 
+    def test_build_contact_review_explains_ranking(self):
+        _, _, _, _, ranked = mod.choose_best_contacts([
+            {"value": "press@acme.com", "source_url": "https://acme.com/contact", "source_type": "page"},
+            {"value": "hello@acme.com", "source_url": "https://acme.com", "source_type": "page"},
+        ], "acme.com")
+        review = mod.build_contact_review(ranked)
+        self.assertEqual(review[0]["email"], "hello@acme.com")
+        self.assertIn("matches primary domain", review[0]["reasons"])
+        self.assertIn("local part looks outreach-friendly", review[0]["reasons"])
+
     def test_summarize_removes_obvious_junk(self):
         out = mod.summarize(
             "Enable JavaScript to continue. Acme builds warehouse software for logistics teams across Europe. Privacy policy.",
@@ -99,6 +109,7 @@ class EnrichLeadTests(unittest.TestCase):
         self.assertIn("Only weak outreach contacts found", result["warnings"])
         self.assertLess(result["confidence"], 0.6)
         self.assertTrue(result["trust_signals"]["best_contact"]["weak"])
+        self.assertEqual(result["review"]["status"], "review_required")
 
     def test_summarize_uses_longest_snippet_fallback(self):
         out = mod.summarize(None, ["short", "this is a much longer snippet about a company and what it does"])
@@ -199,6 +210,21 @@ class EnrichLeadTests(unittest.TestCase):
         self.assertTrue(result["site_verification"]["verified"])
         self.assertTrue(result["trust_signals"]["site_verified"])
         self.assertEqual(result["trust_signals"]["email_count"], 2)
+        self.assertEqual(result["review"]["status"], "ready")
+        self.assertGreaterEqual(len(result["site_candidates"]), 1)
+
+    def test_build_review_result_blocks_low_confidence_dossier(self):
+        result = {
+            "primary_domain": None,
+            "site_verification": {"verified": False, "score": 0.5},
+            "best_contact_email": None,
+            "confidence": 0.2,
+            "trust_signals": {"best_contact": {"weak": False}},
+        }
+        review = mod.build_review_result(result, [])
+        self.assertEqual(review["status"], "blocked")
+        self.assertFalse(review["ready_for_outreach"])
+        self.assertIn("No primary domain was identified", review["reasons"])
 
 
 if __name__ == "__main__":
