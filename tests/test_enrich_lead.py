@@ -55,9 +55,11 @@ class EnrichLeadTests(unittest.TestCase):
     def test_compute_confidence_penalizes_weak_external_contact(self):
         weak_meta = mod.classify_contact_email("press@gmail.com", "acme.com")
         strong_meta = mod.classify_contact_email("hello@acme.com", "acme.com")
-        weak = mod.compute_confidence("acme.com", ["press@gmail.com"], [], "summary", ["Only weak outreach contacts found"], weak_meta)
-        strong = mod.compute_confidence("acme.com", ["hello@acme.com"], [], "summary", [], strong_meta)
+        weak, weak_signals = mod.compute_confidence("acme.com", ["press@gmail.com"], [], "summary", ["Only weak outreach contacts found"], weak_meta)
+        strong, strong_signals = mod.compute_confidence("acme.com", ["hello@acme.com"], [], "summary", [], strong_meta)
         self.assertLess(weak, strong)
+        self.assertTrue(weak_signals["best_contact"]["weak"])
+        self.assertTrue(strong_signals["best_contact"]["official"])
 
     def test_enrich_warns_when_only_weak_contacts_exist(self):
         original_build_queries = mod.build_queries
@@ -96,6 +98,7 @@ class EnrichLeadTests(unittest.TestCase):
         self.assertEqual(result["best_contact_source"]["source_url"], "https://acme.com")
         self.assertIn("Only weak outreach contacts found", result["warnings"])
         self.assertLess(result["confidence"], 0.6)
+        self.assertTrue(result["trust_signals"]["best_contact"]["weak"])
 
     def test_summarize_uses_longest_snippet_fallback(self):
         out = mod.summarize(None, ["short", "this is a much longer snippet about a company and what it does"])
@@ -194,6 +197,8 @@ class EnrichLeadTests(unittest.TestCase):
         self.assertEqual(result["phone_sources"]["+49 30 123456"]["source_url"], "https://acme.com")
         self.assertEqual(result["summary_source"]["source_url"], "https://acme.com")
         self.assertTrue(result["site_verification"]["verified"])
+        self.assertTrue(result["trust_signals"]["site_verified"])
+        self.assertEqual(result["trust_signals"]["email_count"], 2)
 
 
 if __name__ == "__main__":

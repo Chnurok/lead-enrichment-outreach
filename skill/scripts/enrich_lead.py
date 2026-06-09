@@ -445,10 +445,37 @@ def summarize(text, snippets, source_url=None):
     return None
 
 
-def compute_confidence(domain, emails, phones, summary, warnings, best_contact_meta=None):
+def build_trust_signals(domain, emails, phones, summary, warnings, best_contact_meta=None, site_verification=None):
+    warning_penalty = round(min(0.3, 0.05 * len(warnings)), 2)
+    signals = {
+        "has_domain": bool(domain),
+        "has_summary": bool(summary),
+        "email_count": len(emails or []),
+        "phone_count": len(phones or []),
+        "warning_count": len(warnings or []),
+        "warning_penalty": warning_penalty,
+        "site_verified": bool(site_verification and site_verification.get("verified")),
+        "site_verification_score": round((site_verification or {}).get("score", 0.0), 2),
+        "best_contact": {
+            "present": bool(best_contact_meta),
+            "official": bool(best_contact_meta and best_contact_meta.get("official")),
+            "strong": bool(best_contact_meta and best_contact_meta.get("strong")),
+            "weak": bool(best_contact_meta and best_contact_meta.get("weak")),
+            "tier": best_contact_meta.get("tier") if best_contact_meta else None,
+        },
+    }
+    return signals
+
+
+def compute_confidence(domain, emails, phones, summary, warnings, best_contact_meta=None, site_verification=None):
+    signals = build_trust_signals(domain, emails, phones, summary, warnings, best_contact_meta, site_verification)
     score = 0.05
-    if domain:
-        score += 0.3
+    if signals["has_domain"]:
+        score += 0.25
+    if signals["site_verified"]:
+        score += 0.1
+    elif signals["site_verification_score"] >= 1.0:
+        score += 0.05
     if emails:
         score += 0.15
     if phones:
@@ -466,8 +493,8 @@ def compute_confidence(domain, emails, phones, summary, warnings, best_contact_m
             score -= 0.1
     elif emails:
         score -= 0.1
-    score -= min(0.3, 0.05 * len(warnings))
-    return round(max(0.0, min(1.0, score)), 2)
+    score -= signals["warning_penalty"]
+    return round(max(0.0, min(1.0, score)), 2), signals
 
 
 def enrich(company, region=None, domain=None, query_mode="smart"):
@@ -553,9 +580,18 @@ def enrich(company, region=None, domain=None, query_mode="smart"):
         "social_links": social_values,
         "snippets": snippets[:5],
         "confidence": 0.0,
+        "trust_signals": {},
         "warnings": dedupe(warnings),
     }
-    result["confidence"] = compute_confidence(result["primary_domain"], result["emails"], result["phones"], result["summary"], result["warnings"], best_contact_meta)
+    result["confidence"], result["trust_signals"] = compute_confidence(
+        result["primary_domain"],
+        result["emails"],
+        result["phones"],
+        result["summary"],
+        result["warnings"],
+        best_contact_meta,
+        site_verification,
+    )
     return result
 
 
