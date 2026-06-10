@@ -24,6 +24,7 @@ This repo is opinionated in the other direction:
 - contact ranking with reasons and source attribution
 - review verdict: `ready`, `review_required`, or `blocked`
 - safer outreach drafting with a fail-closed default
+- an operator-review layer for editing drafts before send
 
 ## 10-second example
 
@@ -116,6 +117,21 @@ python3 skill/scripts/generate_outreach.py openai-dossier.json \
 - `skill/scripts/` — enrichment, batch processing, and draft-generation scripts
 - `tests/` — unit tests around ranking, summaries, trust, and draft gating
 - `examples/` — curated public examples
+- `ui/` — operator review surface for human approval before send *(planned consolidation target)*
+
+## Product direction
+
+This repository is the main product now.
+
+The previously separate **B2B Outreach Editor** is being folded into this workflow as the human-review layer rather than kept as a standalone product story.
+
+Target flow:
+
+1. find / verify company
+2. build dossier
+3. rank contacts
+4. generate draft only when trust is good enough
+5. let an operator review/edit/approve before send
 
 ## Reliability notes
 
