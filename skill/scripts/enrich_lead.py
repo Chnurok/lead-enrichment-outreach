@@ -17,6 +17,13 @@ TIMEOUT = 12
 MAX_CONTACT_FETCH = 3
 EMAIL_RE = re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.I)
 PHONE_RE = re.compile(r"(?:\+?\d[\d\s().-]{7,}\d)")
+EMAIL_JUNK_PATTERNS = (
+    "u003e",
+    "u003c",
+    "example.com",
+)
+PHONE_MIN_DIGITS = 10
+PHONE_MAX_DIGITS = 15
 SOCIAL_RE = re.compile(r"(linkedin\.com|facebook\.com|instagram\.com|t\.me|telegram\.me|vk\.com|youtube\.com)", re.I)
 BAD_HOST_HINTS = ("yandex.ru", "2gis.ru", "zoon.ru", "yellowpages", "facebook.com", "instagram.com", "linkedin.com", "wikipedia.org")
 CONTACT_HINTS = ("contact", "contacts", "about", "team", "company", "support")
@@ -90,9 +97,25 @@ def dedupe_records(records, key_fields):
     return list(seen.values())
 
 
+def unwrap_search_result_url(url):
+    if not url:
+        return url
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme == "" and parsed.netloc == "" and url.startswith("//"):
+        parsed = urllib.parse.urlparse(f"https:{url}")
+    host = parsed.netloc.lower().removeprefix("www.")
+    if host.endswith("duckduckgo.com") and parsed.path.startswith("/l/"):
+        target = urllib.parse.parse_qs(parsed.query).get("uddg", [None])[0]
+        if target:
+            return urllib.parse.unquote(target)
+    return url
+
+
 def domain_of(url):
     try:
-        netloc = urllib.parse.urlparse(url).netloc.lower()
+        normalized = unwrap_search_result_url(url)
+        parsed = urllib.parse.urlparse(normalized)
+        netloc = parsed.netloc.lower()
         return netloc.removeprefix("www.")
     except Exception:
         return ""
@@ -136,7 +159,8 @@ def search_query(query):
     if not urls:
         urls = re.findall(r'<a rel="nofollow" class="result__url" href="(.*?)"', body)
     snippets = [clean_text(s)[:240] for s in re.findall(r'class="result__snippet"[^>]*>(.*?)</a>', body, flags=re.S)[:8]]
-    return [html.unescape(u) for u in urls], snippets
+    normalized_urls = [unwrap_search_result_url(html.unescape(u)) for u in urls]
+    return normalized_urls, snippets
 
 
 def score_candidate(url, company, region=None, snippet=None):
@@ -240,6 +264,35 @@ def normalize_phone(phone):
     return phone.strip(" .,-") or None
 
 
+def clean_email(email):
+    email = (email or "").strip().lower()
+    email = html.unescape(email)
+    email = email.strip(" <>\"'()[]{}.,;:")
+    if any(token in email for token in EMAIL_JUNK_PATTERNS):
+        return None
+    if not EMAIL_RE.fullmatch(email):
+        return None
+    return email
+
+
+def plausible_phone(phone):
+    phone = normalize_phone(phone)
+    if not phone:
+        return None
+    digits = re.sub(r"\D", "", phone)
+    if len(digits) < PHONE_MIN_DIGITS or len(digits) > PHONE_MAX_DIGITS:
+        return None
+    if digits.startswith("00") and len(digits) < 11:
+        return None
+    has_separator = bool(re.search(r"[\s().+-]", phone))
+    if not has_separator and not phone.startswith("+"):
+        return None
+    grouped = [part for part in re.split(r"[^0-9]+", phone) if part]
+    if grouped and len(grouped) > 2 and any(len(part) >= 6 for part in grouped[1:-1]):
+        return None
+    return phone
+
+
 def extract_json_ld_contacts(blocks, url):
     emails = []
     phones = []
@@ -261,11 +314,11 @@ def extract_json_ld_contacts(blocks, url):
                     if not isinstance(entry, str):
                         continue
                     if key == "email":
-                        email = entry.replace("mailto:", "").strip().lower()
-                        if EMAIL_RE.fullmatch(email):
+                        email = clean_email(entry.replace("mailto:", ""))
+                        if email:
                             emails.append({"value": email, "source_url": url, "source_type": "jsonld"})
                     else:
-                        phone = normalize_phone(entry.replace("tel:", ""))
+                        phone = plausible_phone(entry.replace("tel:", ""))
                         if phone:
                             phones.append({"value": phone, "source_url": url, "source_type": "jsonld"})
     return dedupe_records(emails, ("value",)), dedupe_records(phones, ("value",))
@@ -278,11 +331,11 @@ def extract_mailto_tel_links(links, url):
         raw = html.unescape(href or "")
         lower = raw.lower()
         if lower.startswith("mailto:"):
-            email = unquote(raw.split(":", 1)[1].split("?", 1)[0]).strip().lower()
-            if EMAIL_RE.fullmatch(email):
+            email = clean_email(unquote(raw.split(":", 1)[1].split("?", 1)[0]))
+            if email:
                 emails.append({"value": email, "source_url": url, "source_type": "mailto"})
         elif lower.startswith("tel:"):
-            phone = normalize_phone(unquote(raw.split(":", 1)[1].split("?", 1)[0]))
+            phone = plausible_phone(unquote(raw.split(":", 1)[1].split("?", 1)[0]))
             if phone:
                 phones.append({"value": phone, "source_url": url, "source_type": "tel"})
     return dedupe_records(emails, ("value",)), dedupe_records(phones, ("value",))
@@ -311,14 +364,16 @@ def parse_page(url, base_domain):
     result["title"] = clean_text(" ".join(parser.title))[:140] if parser.title else None
     result["summary_text"] = text[:2000]
     regex_emails = dedupe_records([
-        {"value": e.lower(), "source_url": url, "source_type": "page"}
+        {"value": email, "source_url": url, "source_type": "page"}
         for e in EMAIL_RE.findall(raw)
-        if not e.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))
+        for email in [clean_email(e)]
+        if email and not email.endswith((".png", ".jpg", ".jpeg", ".webp"))
     ], ("value",))
     regex_phones = dedupe_records([
-        {"value": normalize_phone(p), "source_url": url, "source_type": "page"}
+        {"value": phone, "source_url": url, "source_type": "page"}
         for p in PHONE_RE.findall(text)
-        if normalize_phone(p)
+        for phone in [plausible_phone(p)]
+        if phone
     ], ("value",))
 
     links = []

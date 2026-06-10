@@ -17,6 +17,7 @@ Use this skill to turn rough lead inputs into structured, reviewable outreach do
    - Run `skill/scripts/enrich_lead.py` for single leads.
    - Run `skill/scripts/batch_enrich_csv.py` for CSV batches.
    - Keep the raw JSON output.
+   - For a single workflow artifact that bundles dossier + review + optional draft, use `skill/scripts/workflow.py`.
 
 3. Review the dossier.
    - Check `primary_domain`, `site_verification`, `best_contact_email`, `summary`, `trust_signals`, and `warnings`.
@@ -83,6 +84,7 @@ python3 skill/scripts/batch_enrich_csv.py leads.csv --output enriched.json
 
 ### `skill/scripts/generate_outreach.py`
 Use after enrichment to turn a dossier into a first email draft.
+By default it refuses dossiers that are not `review.status == "ready"`; use `--allow-review-required` only after human review.
 
 Example:
 ```bash
@@ -97,6 +99,7 @@ python3 skill/scripts/generate_outreach.py dossier.json --offer "AI-assisted cli
 ## Guardrails
 
 - Do not send automatically unless the user explicitly wants sending.
+- Treat `review_required` as gated, not ready.
 - Treat scraped personal data carefully.
 - Keep public examples sanitized.
 - When confidence is low, say why.

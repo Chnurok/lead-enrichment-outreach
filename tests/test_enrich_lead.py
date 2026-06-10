@@ -9,6 +9,23 @@ spec.loader.exec_module(mod)
 
 
 class EnrichLeadTests(unittest.TestCase):
+    def test_unwraps_duckduckgo_redirect_urls(self):
+        wrapped = "//duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.deepl.com%2Fen%2Ftranslator&rut=abc"
+        self.assertEqual(
+            mod.unwrap_search_result_url(wrapped),
+            "https://www.deepl.com/en/translator",
+        )
+        self.assertEqual(mod.domain_of(wrapped), "deepl.com")
+
+    def test_clean_email_filters_escaped_junk(self):
+        self.assertEqual(mod.clean_email("Support@DeepL.com"), "support@deepl.com")
+        self.assertIsNone(mod.clean_email("u003eblock@deepl.com"))
+
+    def test_plausible_phone_filters_numeric_noise(self):
+        self.assertIsNone(mod.plausible_phone("201708291325"))
+        self.assertIsNone(mod.plausible_phone("174078830"))
+        self.assertEqual(mod.plausible_phone("+49 40 1234 5678"), "+49 40 1234 5678")
+
     def test_build_queries_smart(self):
         qs = mod.build_queries("Acme", "Berlin", None, "smart")
         self.assertEqual(len(qs), 3)

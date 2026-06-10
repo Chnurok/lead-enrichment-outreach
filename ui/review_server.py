@@ -66,17 +66,19 @@ def validate_review_payload(data):
         if not isinstance(draft.get(field), str) or not draft[field].strip():
             raise ApiError(400, f"Draft field '{field}' must be a non-empty string")
 
+    dossier = data["dossier"]
+    review = dossier.get("review")
+    if not isinstance(review, dict) or review.get("status") not in {"ready", "review_required", "blocked"}:
+        raise ApiError(400, "dossier.review.status must be ready, review_required, or blocked")
+
     decision = data["review_decision"]
     status = decision.get("status")
     if status not in {"approved", "rejected", "needs_review"}:
         raise ApiError(400, "review_decision.status must be approved, rejected, or needs_review")
     if not isinstance(decision.get("updated_at"), str) or not decision["updated_at"].strip():
         raise ApiError(400, "review_decision.updated_at must be a non-empty string")
-
-    dossier = data["dossier"]
-    review = dossier.get("review")
-    if not isinstance(review, dict) or review.get("status") not in {"ready", "review_required", "blocked"}:
-        raise ApiError(400, "dossier.review.status must be ready, review_required, or blocked")
+    if status == "approved" and review.get("status") != "ready":
+        raise ApiError(400, "Cannot mark review approved unless dossier.review.status is ready")
 
 
 class Handler(BaseHTTPRequestHandler):
