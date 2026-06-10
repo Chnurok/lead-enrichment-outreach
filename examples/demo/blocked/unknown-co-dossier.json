@@ -1,0 +1,77 @@
+{
+  "company": "Unknown Co",
+  "region": null,
+  "query": "Unknown Co",
+  "primary_domain": null,
+  "website_title": null,
+  "site_verification": {
+    "verified": false,
+    "score": 0.0,
+    "title": null,
+    "reason": "no trustworthy official site candidate"
+  },
+  "site_candidates": [
+    {
+      "url": "https://directory.example/unknown-co",
+      "domain": "directory.example",
+      "base_score": -10.0,
+      "verification_score": 0.0,
+      "combined_score": -10.0,
+      "verified": false,
+      "title": "Unknown Co listing",
+      "reason": "weak company match on candidate site",
+      "snippet": "Directory listing with no official contact details."
+    }
+  ],
+  "summary": "Only third-party directory references were found; no reliable official company context was extracted.",
+  "summary_source": {
+    "source_url": null,
+    "source_type": "serp"
+  },
+  "emails": [],
+  "email_sources": {},
+  "best_contact_email": null,
+  "best_contact_source": null,
+  "phones": [],
+  "phone_sources": {},
+  "contact_pages": [],
+  "social_links": [],
+  "snippets": [
+    "Directory listing with no official contact details."
+  ],
+  "confidence": 0.12,
+  "trust_signals": {
+    "has_domain": false,
+    "has_summary": true,
+    "email_count": 0,
+    "phone_count": 0,
+    "warning_count": 3,
+    "warning_penalty": 0.15,
+    "site_verified": false,
+    "site_verification_score": 0.0,
+    "best_contact": {
+      "present": false,
+      "official": false,
+      "strong": false,
+      "weak": false,
+      "tier": null
+    }
+  },
+  "review": {
+    "status": "blocked",
+    "ready_for_outreach": false,
+    "reasons": [
+      "No primary domain was identified",
+      "No outreach email was found",
+      "Overall dossier confidence is too low",
+      "Official site could not be strongly verified"
+    ],
+    "next_step": "find a better official site or stronger contact before drafting outreach",
+    "top_contact_candidates": []
+  },
+  "warnings": [
+    "No strong official website match found",
+    "Official site candidate could not be strongly verified",
+    "No official-domain outreach email found"
+  ]
+}

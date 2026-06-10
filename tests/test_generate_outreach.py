@@ -1,14 +1,22 @@
 import importlib.util
 import json
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-SCRIPT = Path(__file__).resolve().parents[1] / "skill" / "scripts" / "generate_outreach.py"
+SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "skill" / "scripts"
+SCRIPT = SCRIPTS_DIR / "generate_outreach.py"
 spec = importlib.util.spec_from_file_location("generate_outreach", SCRIPT)
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
+
+WORKFLOW_SCRIPT = SCRIPTS_DIR / "workflow.py"
+workflow_spec = importlib.util.spec_from_file_location("workflow", WORKFLOW_SCRIPT)
+workflow = importlib.util.module_from_spec(workflow_spec)
+sys.path.insert(0, str(SCRIPTS_DIR))
+workflow_spec.loader.exec_module(workflow)
 
 
 class GenerateOutreachTests(unittest.TestCase):
@@ -79,6 +87,60 @@ class GenerateOutreachTests(unittest.TestCase):
             ], capture_output=True, text=True)
         self.assertEqual(proc.returncode, 0)
         self.assertIn("Idea for Acme's outreach flow", proc.stdout)
+
+    def test_workflow_artifact_ready_path_includes_draft(self):
+        dossier = {
+            "company": "DeepL",
+            "primary_domain": "deepl.com",
+            "summary": "DeepL provides translation and API products.",
+            "emails": ["support@deepl.com"],
+            "review": {"status": "ready", "ready_for_outreach": True, "reasons": []},
+        }
+        artifact = workflow.build_artifact(
+            company="DeepL",
+            domain="deepl.com",
+            offer="AI-assisted lead enrichment and outreach",
+            dossier=dossier,
+            draft=mod.draft(dossier, "AI-assisted lead enrichment and outreach", "Would Tuesday work?"),
+        )
+        self.assertEqual(artifact["result"]["status"], "ready")
+        self.assertTrue(artifact["result"]["draft_generated"])
+        self.assertEqual(artifact["artifacts"]["draft"]["target_contact"], "support@deepl.com")
+
+    def test_workflow_artifact_review_required_has_no_draft_by_default(self):
+        dossier = {
+            "company": "Mistral AI",
+            "primary_domain": "mistral.ai",
+            "summary": "Mistral AI provides frontier language models.",
+            "emails": ["press@mistral.ai"],
+            "review": {"status": "review_required", "ready_for_outreach": False, "reasons": ["Needs review"]},
+        }
+        artifact = workflow.build_artifact(
+            company="Mistral AI",
+            domain="mistral.ai",
+            offer="AI-assisted lead enrichment and outreach",
+            dossier=dossier,
+            draft=None,
+        )
+        self.assertEqual(artifact["result"]["status"], "review_required")
+        self.assertTrue(artifact["result"]["requires_review"])
+        self.assertFalse(artifact["result"]["draft_generated"])
+
+    def test_workflow_artifact_blocked_path(self):
+        dossier = {
+            "company": "Unknown Co",
+            "primary_domain": None,
+            "review": {"status": "blocked", "ready_for_outreach": False, "reasons": ["No primary domain was identified"]},
+        }
+        artifact = workflow.build_artifact(
+            company="Unknown Co",
+            offer="AI-assisted lead enrichment and outreach",
+            dossier=dossier,
+            draft=None,
+        )
+        self.assertEqual(artifact["result"]["status"], "blocked")
+        self.assertFalse(artifact["result"]["ready_for_outreach"])
+        self.assertEqual(artifact["artifacts"]["review"]["reasons"][0], "No primary domain was identified")
 
 
 if __name__ == "__main__":

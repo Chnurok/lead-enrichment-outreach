@@ -11,6 +11,16 @@ __pycache__/
 dist/
 *.egg-info/
 
+.openclaw/
+AGENTS.md
+HEARTBEAT.md
+IDENTITY.md
+SOUL.md
+TOOLS.md
+USER.md
+
 *.json
 !examples/*.json
+!examples/**/*.json
 !examples/*.csv
+!examples/**/*.csv

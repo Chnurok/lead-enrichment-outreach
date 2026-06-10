@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lead Review UI</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f8fb;
+      --card: #ffffff;
+      --line: #dbe3ef;
+      --text: #172033;
+      --muted: #5f6b84;
+      --ok: #16784b;
+      --warn: #a05a00;
+      --bad: #b02a37;
+      --chip: #edf2ff;
+      --accent: #2c6bed;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .page { max-width: 1200px; margin: 0 auto; padding: 24px; }
+    .header, .grid, .footer { display: grid; gap: 16px; }
+    .header { grid-template-columns: 2fr 1fr; align-items: start; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: 0 6px 20px rgba(23,32,51,0.05);
+    }
+    .title { font-size: 28px; margin: 0 0 6px; }
+    .muted { color: var(--muted); }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .chip { background: var(--chip); border-radius: 999px; padding: 6px 10px; font-size: 13px; }
+    .grid { grid-template-columns: 1.2fr 1fr; }
+    .stack { display: grid; gap: 16px; }
+    .section-title { margin: 0 0 12px; font-size: 16px; }
+    .status {
+      display: inline-flex; align-items: center; gap: 8px; font-weight: 700; padding: 8px 12px;
+      border-radius: 999px; font-size: 14px;
+    }
+    .status.ready { background: #e8f7ef; color: var(--ok); }
+    .status.review_required { background: #fff4df; color: var(--warn); }
+    .status.blocked { background: #fdecee; color: var(--bad); }
+    ul { margin: 0; padding-left: 18px; }
+    li + li { margin-top: 6px; }
+    .source, .contact { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; }
+    .contact strong { display: block; }
+    .contact small, .source small { color: var(--muted); }
+    label { display: block; font-weight: 600; margin-bottom: 6px; }
+    input[type="text"], textarea, select {
+      width: 100%; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px;
+      font: inherit; background: #fff;
+    }
+    textarea { min-height: 240px; resize: vertical; }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+    button {
+      border: none; border-radius: 12px; padding: 10px 14px; font: inherit; font-weight: 700; cursor: pointer;
+    }
+    .approve { background: #1f9d62; color: white; }
+    .reject { background: #d64555; color: white; }
+    .needs-review { background: #f0b34f; color: #3b2a09; }
+    .save { background: var(--accent); color: white; }
+    .note { min-height: 90px; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .flash { position: sticky; bottom: 12px; margin-top: 12px; color: var(--ok); font-weight: 700; display: none; }
+    @media (max-width: 920px) {
+      .header, .grid, .two-col { grid-template-columns: 1fr; }
+      .page { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="header">
+      <section class="card">
+        <h1 class="title">Lead review UI</h1>
+        <div id="leadMeta" class="muted">Loading…</div>
+        <div class="chips" id="leadChips"></div>
+      </section>
+      <section class="card">
+        <h2 class="section-title">Review verdict</h2>
+        <div id="reviewStatus"></div>
+        <div class="source">
+          <strong>Operator decision</strong>
+          <small id="operatorStatus"></small>
+        </div>
+      </section>
+    </div>
+
+    <div class="grid">
+      <div class="stack">
+        <section class="card">
+          <h2 class="section-title">Dossier summary</h2>
+          <p id="summaryText"></p>
+          <div class="source">
+            <strong>Summary source</strong>
+            <small id="summarySource"></small>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2 class="section-title">Warnings & reasons</h2>
+          <ul id="warningsList"></ul>
+          <div class="source">
+            <strong>Next step</strong>
+            <small id="nextStep"></small>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2 class="section-title">Ranked contacts</h2>
+          <div id="contacts"></div>
+        </section>
+
+        <section class="card">
+          <h2 class="section-title">Site candidates</h2>
+          <div id="siteCandidates"></div>
+        </section>
+      </div>
+
+      <div class="stack">
+        <section class="card">
+          <h2 class="section-title">Edit draft</h2>
+          <div class="two-col">
+            <div>
+              <label for="targetContact">Target contact</label>
+              <input id="targetContact" type="text" />
+            </div>
+            <div>
+              <label for="decision">Decision</label>
+              <select id="decision">
+                <option value="needs_review">needs_review</option>
+                <option value="approved">approved</option>
+                <option value="rejected">rejected</option>
+              </select>
+            </div>
+          </div>
+          <div style="margin-top:12px;">
+            <label for="subject">Subject</label>
+            <input id="subject" type="text" />
+          </div>
+          <div style="margin-top:12px;">
+            <label for="body">Body</label>
+            <textarea id="body"></textarea>
+          </div>
+          <div style="margin-top:12px;">
+            <label for="notes">Review notes</label>
+            <textarea id="notes" class="note"></textarea>
+          </div>
+          <div class="actions">
+            <button class="approve" onclick="setDecision('approved')">Approve</button>
+            <button class="reject" onclick="setDecision('rejected')">Reject</button>
+            <button class="needs-review" onclick="setDecision('needs_review')">Needs review</button>
+            <button class="save" onclick="saveReview()">Save</button>
+          </div>
+          <div id="flash" class="flash">Saved</div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let state = null;
+
+    function badgeClass(status) {
+      return ['ready', 'review_required', 'blocked'].includes(status) ? status : 'review_required';
+    }
+
+    function esc(value) {
+      return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function sourceLabel(source) {
+      if (!source) return 'n/a';
+      return `${source.source_type || 'unknown'} · ${source.source_url || 'n/a'}`;
+    }
+
+    function renderList(id, items, fallback = 'None') {
+      const el = document.getElementById(id);
+      if (!items || !items.length) {
+        el.innerHTML = `<li>${fallback}</li>`;
+        return;
+      }
+      el.innerHTML = items.map(item => `<li>${esc(item)}</li>`).join('');
+    }
+
+    function render() {
+      const dossier = state.dossier;
+      const decision = state.review_decision;
+      document.getElementById('leadMeta').textContent = `${state.lead.company} · ${state.lead.domain || 'no domain'} · offer: ${state.lead.offer || 'n/a'}`;
+      document.getElementById('leadChips').innerHTML = [
+        `review=${dossier.review.status}`,
+        `confidence=${dossier.confidence}`,
+        `best_contact=${dossier.best_contact_email || 'none'}`
+      ].map(v => `<span class="chip">${esc(v)}</span>`).join('');
+
+      document.getElementById('reviewStatus').innerHTML = `<span class="status ${badgeClass(dossier.review.status)}">${esc(dossier.review.status)}</span>`;
+      document.getElementById('operatorStatus').textContent = `${decision.status} · updated ${decision.updated_at}`;
+      document.getElementById('summaryText').textContent = dossier.summary || 'No summary available';
+      document.getElementById('summarySource').textContent = sourceLabel(dossier.summary_source);
+      renderList('warningsList', [...(dossier.warnings || []), ...(dossier.review.reasons || [])], 'No warnings');
+      document.getElementById('nextStep').textContent = dossier.review.next_step || 'n/a';
+
+      document.getElementById('contacts').innerHTML = (dossier.review.top_contact_candidates || []).map(contact => `
+        <div class="contact">
+          <strong>${esc(contact.email)}</strong>
+          <small>score ${esc(contact.score)} · ${esc(contact.tier)} · ${esc(contact.reasons.join(', '))}</small><br />
+          <small>${esc(sourceLabel(contact.source))}</small>
+        </div>
+      `).join('') || '<div class="muted">No ranked contacts</div>';
+
+      document.getElementById('siteCandidates').innerHTML = (dossier.site_candidates || []).map(site => `
+        <div class="contact">
+          <strong><a href="${esc(site.url)}" target="_blank" rel="noreferrer">${esc(site.domain)}</a></strong>
+          <small>combined ${esc(site.combined_score)} · verified=${esc(site.verified)} · ${esc(site.title || 'no title')}</small><br />
+          <small>${esc(site.snippet || site.reason || 'no snippet')}</small>
+        </div>
+      `).join('') || '<div class="muted">No candidate sites</div>';
+
+      document.getElementById('targetContact').value = state.draft.target_contact || '';
+      document.getElementById('subject').value = state.draft.subject || '';
+      document.getElementById('body').value = state.draft.body || '';
+      document.getElementById('notes').value = decision.notes || '';
+      document.getElementById('decision').value = decision.status || 'needs_review';
+    }
+
+    function setDecision(value) {
+      document.getElementById('decision').value = value;
+    }
+
+    async function loadReview() {
+      const response = await fetch('/api/review');
+      state = await response.json();
+      render();
+    }
+
+    async function saveReview() {
+      state.draft.target_contact = document.getElementById('targetContact').value;
+      state.draft.subject = document.getElementById('subject').value;
+      state.draft.body = document.getElementById('body').value;
+      state.review_decision.status = document.getElementById('decision').value;
+      state.review_decision.notes = document.getElementById('notes').value;
+      state.review_decision.updated_at = new Date().toISOString();
+      const response = await fetch('/api/review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(state)
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        alert(payload.error || 'Save failed');
+        return;
+      }
+      state = payload.review;
+      render();
+      const flash = document.getElementById('flash');
+      flash.style.display = 'block';
+      setTimeout(() => { flash.style.display = 'none'; }, 1500);
+    }
+
+    loadReview();
+  </script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+{
+  "demo_scenarios": [
+    {
+      "status": "ready",
+      "company": "DeepL",
+      "path": "examples/demo/ready/deepl-dossier.json",
+      "draft": "examples/demo/ready/deepl-draft.json",
+      "why_it_matters": "Shows the happy path with an official site, an official contact, and an auto-generated draft."
+    },
+    {
+      "status": "review_required",
+      "company": "Mistral AI",
+      "path": "examples/demo/review_required/mistral-ai-dossier.json",
+      "draft_override": "examples/demo/review_required/mistral-ai-draft-override.json",
+      "why_it_matters": "Shows a credible company with only weak contacts, so outreach remains gated until human review."
+    },
+    {
+      "status": "blocked",
+      "company": "Unknown Co",
+      "path": "examples/demo/blocked/unknown-co-dossier.json",
+      "why_it_matters": "Shows the system refusing to move forward when it cannot identify a trustworthy official site or contact."
+    },
+    {
+      "status": "refusal",
+      "company": "Mistral AI",
+      "path": "examples/demo/refusal/review-required-draft-refusal.json",
+      "why_it_matters": "Captures the default refusal message operators see when they try to draft from a weak dossier."
+    }
+  ]
+}

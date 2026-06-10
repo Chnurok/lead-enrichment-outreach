@@ -1,0 +1,9 @@
+{
+  "command": "python3 skill/scripts/generate_outreach.py examples/demo/review_required/mistral-ai-dossier.json --offer 'AI-assisted lead enrichment and outreach'",
+  "exit_code": 2,
+  "stderr": [
+    "Refusing to draft outreach: Best available contact looks weak for outreach; Dossier needs human review before outreach",
+    "Re-run with --allow-review-required if you want a draft anyway after manual review."
+  ],
+  "explanation": "Fail-closed default: review_required dossiers do not get an outreach draft unless an operator explicitly overrides after review."
+}
