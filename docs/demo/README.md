@@ -1,52 +1,97 @@
-# Demo path
+# Demo walkthrough
 
-This repo now ships a simple, reproducible demo story:
+Use this doc when you need to show the product fast without narrating the whole repo.
 
-1. **ready** — `examples/demo/ready/deepl-dossier.json`
-   - official site verified
-   - official contact available
-   - outreach draft can be generated automatically
-2. **review_required** — `examples/demo/review_required/mistral-ai-dossier.json`
-   - company looks real
-   - only weak contacts were found
-   - draft is blocked by default and only appears in the explicit override artifact
-3. **blocked** — `examples/demo/blocked/unknown-co-dossier.json`
-   - no trustworthy official site/contact
-   - workflow stops before drafting
-4. **refusal** — `examples/demo/refusal/review-required-draft-refusal.json`
-   - captures the fail-closed CLI refusal for a weak dossier
+## What to prove
 
-## Fast walkthrough
+In one sentence:
+
+`company/domain -> dossier -> trust gate -> draft -> human decision -> ops-ready export`
+
+The product is compelling only if both of these are visible:
+- it can create a usable outreach draft for a good lead
+- it refuses or gates weak leads instead of pretending everything is ready
+
+## 2-minute script
+
+### 1. Show the story
 
 ```bash
-make demo-ready
-make demo-refusal
+make demo-quick
+make demo-story
+```
+
+This frames the flow before you open any files or UI.
+
+### 2. Show the trust outcomes
+
+```bash
 make demo
 ```
 
-`make demo` prints the status, confidence, best contact, and next step for all bundled scenarios.
+Say:
+- `ready` means the dossier is strong enough to draft
+- `review_required` means the company may be real, but contact evidence is weak
+- `blocked` means the workflow stops before outreach
 
-## End-to-end local run
+### 3. Open the operator UI
+
+```bash
+make demo-ui
+```
+
+Open `http://127.0.0.1:8095` and point at:
+- dossier summary and source-backed evidence
+- trust verdict and warnings
+- ranked contacts
+- editable draft
+- explicit operator decision controls
+
+The demo review file and demo batch are already loaded, so you can start in the queue immediately.
+
+### 4. Close with batch handoff
+
+```bash
+make batch-demo
+make ready-export-demo
+```
+
+This is the payoff for ops:
+- run the same workflow on a CSV
+- export only `ready` leads for downstream work
+
+## Demo artifacts
+
+```bash
+make demo-artifacts
+```
+
+Key files:
+- `examples/demo/ready/deepl-dossier.json`
+- `examples/demo/ready/deepl-draft.json`
+- `examples/demo/review_required/mistral-ai-dossier.json`
+- `examples/demo/blocked/unknown-co-dossier.json`
+- `examples/demo/refusal/review-required-draft-refusal.json`
+- `examples/demo-review.json`
+
+## If you have 30 extra seconds
+
+Use the unified artifact:
 
 ```bash
 python3 skill/scripts/workflow.py \
-  --company "DeepL" \
-  --domain deepl.com \
+  --dossier-json examples/demo/ready/deepl-dossier.json \
   --offer "AI-assisted lead enrichment and outreach"
 ```
 
-For a gated case:
+This shows that one run can bundle:
+- input
+- dossier
+- review verdict
+- optional draft
 
-```bash
-python3 skill/scripts/generate_outreach.py \
-  examples/demo/review_required/mistral-ai-dossier.json \
-  --offer "AI-assisted lead enrichment and outreach"
-```
+## Presenter note
 
-Expected outcome: refusal with exit code `2`.
+Do not lead with scraping or implementation details. Lead with the operator promise:
 
-## Packaging notes
-
-- `examples/demo/index.json` is the manifest for demo scenarios.
-- Existing top-level example files remain for compatibility.
-- The new demo tree is organized by review outcome so operators can quickly show the happy path and the safety rails.
+`We do not just generate outreach. We show evidence, gate weak leads, and hand off only the leads that are actually ready.`

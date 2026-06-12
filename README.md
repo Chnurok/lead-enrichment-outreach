@@ -8,6 +8,29 @@ Reviewable AI-assisted B2B outreach workflow:
 
 This repo now includes the local review UI/HTTP layer inside the main product. No auth, no real sending, fail-closed by default.
 
+## Demo first
+
+If you want the shortest path to "show me the product", use this order:
+
+```bash
+make demo-quick
+make demo
+make demo-ui
+make batch-demo
+make ready-export-demo
+```
+
+What each step proves:
+- `make demo` shows the three trust outcomes: `ready`, `review_required`, `blocked`
+- `make demo-ui` opens the operator review surface on `http://127.0.0.1:8095` with the demo review file and demo batch preloaded
+- `make batch-demo` and `make ready-export-demo` show the CSV-to-ops handoff story
+
+Presenter docs:
+- `docs/demo/README.md` — 2-minute walkthrough
+- `docs/demo/SCRIPT.md` — literal talk track and command order
+- `docs/demo/PUBLIC_DEMO.md` — fastest public-hosting path for a remote demo
+- `docs/demo/DEPLOY.md` — systemd/nginx deploy path for a staying-up demo box
+
 ## What v1 includes
 
 - lead enrichment into dossier JSON
@@ -34,18 +57,29 @@ If tests pass, the repo is runnable locally.
 
 ## What to do in the first 3 minutes
 
-### 1) See the product behavior without reading code
+### 1) Frame the story
+
+```bash
+make demo-quick
+make demo-story
+```
+
+This gives you the demo narrative in one line:
+
+`company/domain -> dossier -> trust gate -> draft -> human decision -> ops-ready export`
+
+### 2) See the product behavior without reading code
 
 ```bash
 make demo
 ```
 
 This prints all 3 trust outcomes:
-- `ready` → safe to draft
-- `review_required` → plausible lead, but human review required
-- `blocked` → not trustworthy enough to continue
+- `ready` -> safe to draft
+- `review_required` -> plausible lead, but human review required
+- `blocked` -> not trustworthy enough to continue
 
-### 2) Open the operator UI
+### 3) Open the operator UI
 
 ```bash
 make demo-ui
@@ -63,11 +97,41 @@ What you should see:
 - ranked contact candidates
 - editable outreach draft
 - explicit human decision controls (`approved` / `rejected` / `needs_review`)
+- batch tools:
+  - load demo batch JSON
+  - upload batch JSON artifact
+  - upload CSV and run enrichment from the UI
+  - export ready-only leads as JSON or CSV from the current batch
+  - browse saved review files and reopen them in the UI
+  - export one handoff `.zip` bundle for ops
+  - import a handoff `.zip` bundle back into the UI
+  - inspect a compact ops dashboard for ready/draft/review coverage
+  - bulk-save missing ready review files and jump to the next ready lead without a draft
+  - bulk-generate drafts for ready leads that still have no draft
+  - bulk-approve ready saved reviews and export approved-only handoff lists
+  - export one-click final approved-only bundle for downstream ops
+  - import the approved-only final bundle back into the UI
 
-This seeds `examples/demo-review.json` from the included ready-path example and opens a minimal local review workflow.
+This seeds `examples/demo-review.json`, rebuilds `examples/demo-output.json`, and opens the local review workflow with the demo batch ready to inspect.
 
-### 3) Inspect the example artifacts directly
+### 4) Show batch handoff
 
+```bash
+make batch-demo
+make ready-export-demo
+```
+
+This closes the story:
+- batch workflow runs on a CSV lead list
+- ready-only export gives downstream ops a clean handoff
+
+### 5) Inspect the example artifacts directly
+
+```bash
+make demo-artifacts
+```
+
+Or inspect:
 - `examples/demo/index.json` — map of the demo scenarios
 - `examples/demo/ready/` — happy path
 - `examples/demo/review_required/` — weak-contact gated path
@@ -135,6 +199,51 @@ python3 skill/scripts/workflow.py \
   --offer "AI-assisted lead enrichment and outreach"
 ```
 
+### Batch workflow for a CSV
+
+```bash
+python3 skill/scripts/batch_workflow_csv.py \
+  examples/demo-leads.csv \
+  --offer "AI-assisted lead enrichment and outreach"
+```
+
+This emits one batch JSON artifact with:
+- top-level summary counts for `ready`, `review_required`, `blocked`
+- per-lead workflow artifacts
+- clear visibility into how many drafts were actually generated
+
+Optional output file:
+
+```bash
+python3 skill/scripts/batch_workflow_csv.py \
+  examples/demo-leads.csv \
+  --offer "AI-assisted lead enrichment and outreach" \
+  --output examples/demo-output.json
+```
+
+The local review UI can now run the same flow directly from a CSV upload:
+- choose a `.csv`
+- optionally set an offer for ready leads
+- choose `smart` or `basic` query mode
+- optionally allow draft generation for `review_required` dossiers after human review
+- export the current batch's ready-only leads as downloadable JSON or CSV
+
+### Export ready-only leads for operations
+
+Once you have a batch artifact, export only the leads that are actually ready:
+
+```bash
+python3 skill/scripts/export_ready_leads.py \
+  examples/demo-output.json \
+  --output-json examples/ready-leads.json \
+  --output-csv examples/ready-leads.csv
+```
+
+This gives you:
+- a clean `ready-only` JSON artifact
+- a flat CSV for downstream ops or review
+- draft subject/body bundled only for leads already marked `ready`
+
 ### Review UI
 
 ```bash
@@ -191,13 +300,43 @@ This is a **reviewable outreach system, not black-box lead gen magic**.
 
 In plain English: the product helps prepare outreach, but it does not silently scrape-and-spam.
 
+## Public demo on a server
+
+For the shortest remote demo path on a VPS:
+
+```bash
+make demo-launch-public
+```
+
+Then verify from the host:
+
+```bash
+make demo-public-health
+```
+
+Health endpoint:
+
+```text
+/healthz
+```
+
+It returns:
+- active review file path
+- demo batch file path
+- whether the demo batch exists
+- batch summary counts when readable
+- saved review file count
+
+See `docs/demo/PUBLIC_DEMO.md` for the compact remote-demo checklist.
+
 ## Verification run
 
 Relevant checks for this v1:
 
 ```bash
 python3 -m unittest discover -s tests -q
-python3 ui/review_server.py --seed-demo --review-file examples/demo-review.json --host 127.0.0.1 --port 8095
+python3 ui/review_server.py --demo --review-file examples/demo-review.json --demo-batch-file examples/demo-output.json --host 127.0.0.1 --port 8095
+curl -fsS http://127.0.0.1:8095/healthz
 ```
 
 Use Ctrl+C to stop the local server.

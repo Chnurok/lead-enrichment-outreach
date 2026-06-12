@@ -3,45 +3,133 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Lead Review UI</title>
+  <title>Lead Enrichment Review Console</title>
   <style>
     :root {
       color-scheme: light;
-      --bg: #f6f8fb;
+      --bg: #f3efe7;
       --card: #ffffff;
-      --line: #dbe3ef;
-      --text: #172033;
-      --muted: #5f6b84;
+      --line: #d8cfbf;
+      --text: #1f241f;
+      --muted: #6b6a63;
       --ok: #16784b;
       --warn: #a05a00;
       --bad: #b02a37;
-      --chip: #edf2ff;
-      --accent: #2c6bed;
+      --chip: #efe7d6;
+      --accent: #155d4b;
+      --accent-2: #c96f2d;
+      --paper: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(250,247,241,0.98));
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: Inter, system-ui, -apple-system, Segoe UI, sans-serif;
-      background: var(--bg);
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(201,111,45,0.08), transparent 28%),
+        radial-gradient(circle at top right, rgba(21,93,75,0.09), transparent 24%),
+        linear-gradient(180deg, #f5f0e7 0%, #efe8dc 100%);
       color: var(--text);
     }
-    .page { max-width: 1200px; margin: 0 auto; padding: 24px; }
+    .page { max-width: 1240px; margin: 0 auto; padding: 24px; }
     .header, .grid, .footer { display: grid; gap: 16px; }
     .header { grid-template-columns: 2fr 1fr; align-items: start; }
     .card {
-      background: var(--card);
+      background: var(--paper);
       border: 1px solid var(--line);
-      border-radius: 16px;
+      border-radius: 20px;
       padding: 18px;
-      box-shadow: 0 6px 20px rgba(23,32,51,0.05);
+      box-shadow: 0 18px 40px rgba(56, 42, 18, 0.08);
+      backdrop-filter: blur(6px);
     }
-    .title { font-size: 28px; margin: 0 0 6px; }
+    .title { font-size: 30px; margin: 0 0 6px; letter-spacing: -0.03em; }
     .muted { color: var(--muted); }
     .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-    .chip { background: var(--chip); border-radius: 999px; padding: 6px 10px; font-size: 13px; }
+    .chip { background: var(--chip); border: 1px solid rgba(0,0,0,0.05); border-radius: 999px; padding: 6px 10px; font-size: 13px; }
+    .eyebrow {
+      display: inline-block;
+      margin-bottom: 10px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    .hero-copy { max-width: 64ch; line-height: 1.5; }
+    .flow-steps { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+    .flow-step {
+      min-width: 120px;
+      padding: 10px 12px;
+      border: 1px solid rgba(21,93,75,0.12);
+      border-radius: 14px;
+      background: rgba(255,255,255,0.68);
+    }
+    .flow-step strong { display: block; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+    .flow-step span { display: block; margin-top: 4px; font-size: 14px; }
     .grid { grid-template-columns: 1.2fr 1fr; }
+    .batch-toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
+    .toolbar-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      width: 100%;
+    }
+    .toolbar-note {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    .batch-toolbar input[type="text"], .batch-toolbar select { width: auto; min-width: 140px; }
+    .batch-summary { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+    .batch-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+    .action-group {
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(0,0,0,0.06);
+    }
+    .action-label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #615a4f;
+    }
+    .batch-box { background: var(--chip); border-radius: 14px; padding: 10px 12px; min-width: 110px; border: 1px solid rgba(0,0,0,0.04); }
+    .ops-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+    .ops-box { background: #f8fafc; border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+    .ops-box strong { display: block; font-size: 22px; margin-bottom: 4px; }
+    .batch-list { display: grid; gap: 10px; margin-top: 12px; }
+    .batch-item { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: #fff; }
+    .batch-item.active { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(44, 107, 237, 0.12); }
+    .batch-item.saved-review { text-align: left; width: 100%; }
+    .bundle-box { background: #f8f1de; border: 1px solid #e5d4a4; border-radius: 14px; padding: 12px; margin-top: 12px; }
+    .batch-item h4 { margin: 0 0 6px; font-size: 15px; }
+    .batch-item small { color: var(--muted); }
+    .batch-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .mini-chip {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 12px;
+      border: 1px solid rgba(0,0,0,0.06);
+      background: rgba(255,255,255,0.82);
+      color: #534d45;
+    }
+    .mini-chip.ok { background: #e8f7ef; color: var(--ok); }
+    .mini-chip.warn { background: #fff4df; color: var(--warn); }
+    .mini-chip.bad { background: #fdecee; color: var(--bad); }
     .stack { display: grid; gap: 16px; }
-    .section-title { margin: 0 0 12px; font-size: 16px; }
+    .section-title { margin: 0 0 12px; font-size: 15px; text-transform: uppercase; letter-spacing: 0.06em; color: #615a4f; }
+    .section-lead { margin: -4px 0 12px; color: var(--muted); line-height: 1.45; }
     .status {
       display: inline-flex; align-items: center; gap: 8px; font-weight: 700; padding: 8px 12px;
       border-radius: 999px; font-size: 14px;
@@ -63,14 +151,49 @@
     .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
     button {
       border: none; border-radius: 12px; padding: 10px 14px; font: inherit; font-weight: 700; cursor: pointer;
+      transition: transform 120ms ease, opacity 120ms ease, box-shadow 120ms ease;
     }
+    button:hover { transform: translateY(-1px); box-shadow: 0 10px 18px rgba(0,0,0,0.08); }
     .approve { background: #1f9d62; color: white; }
     .reject { background: #d64555; color: white; }
     .needs-review { background: #f0b34f; color: #3b2a09; }
-    .save { background: var(--accent); color: white; }
+    .save { background: linear-gradient(135deg, var(--accent), #1d7a63); color: white; }
     .note { min-height: 90px; }
     .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .flash { position: sticky; bottom: 12px; margin-top: 12px; color: var(--ok); font-weight: 700; display: none; }
+    .hero-note {
+      margin-top: 14px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, rgba(21,93,75,0.08), rgba(201,111,45,0.10));
+      border: 1px solid rgba(21,93,75,0.12);
+    }
+    .hero-note strong { display: block; margin-bottom: 4px; }
+    .mini-label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #615a4f;
+    }
+    .empty-state {
+      padding: 14px;
+      border-radius: 14px;
+      border: 1px dashed var(--line);
+      background: rgba(255,255,255,0.55);
+      line-height: 1.45;
+    }
+    .hint-box {
+      margin-top: 12px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.7);
+      border: 1px solid rgba(0,0,0,0.05);
+      line-height: 1.45;
+      color: #4f4a43;
+    }
     @media (max-width: 920px) {
       .header, .grid, .two-col { grid-template-columns: 1fr; }
       .page { padding: 16px; }
@@ -81,12 +204,52 @@
   <div class="page">
     <div class="header">
       <section class="card">
-        <h1 class="title">Lead review UI</h1>
+        <span class="eyebrow">Demo workspace</span>
+        <h1 class="title">Lead enrichment review console</h1>
         <div id="leadMeta" class="muted">Loading…</div>
         <div class="chips" id="leadChips"></div>
+        <p class="hero-copy muted">Inspect batch outcomes, fill missing drafts, save operator review files, and export only the leads that are truly ready for handoff.</p>
+        <div class="hero-note">
+          <strong>Fastest demo path</strong>
+          Load the demo batch, open a ready lead, confirm the draft, save the review file, then export the approved handoff bundle.
+        </div>
+        <div class="flow-steps">
+          <div class="flow-step"><strong>1. Load</strong><span>Batch or bundle</span></div>
+          <div class="flow-step"><strong>2. Triage</strong><span>Ready vs gaps</span></div>
+          <div class="flow-step"><strong>3. Review</strong><span>Draft and notes</span></div>
+          <div class="flow-step"><strong>4. Export</strong><span>Approved handoff</span></div>
+        </div>
+        <div class="batch-toolbar">
+          <div class="toolbar-group">
+            <button class="save" onclick="loadDemoBatch()">Load demo batch</button>
+            <input id="batchCsvFile" type="file" accept=".csv,text/csv" onchange="runBatchCsvFile(event)" />
+            <input id="batchFile" type="file" accept=".json,application/json" onchange="loadBatchFile(event)" />
+            <input id="bundleZipFile" type="file" accept=".zip,application/zip" onchange="importBundleZip(event)" />
+            <input id="approvedBundleZipFile" type="file" accept=".zip,application/zip" onchange="importApprovedBundleZip(event)" />
+          </div>
+          <div class="toolbar-group">
+            <input id="batchOffer" type="text" placeholder="Offer used when draft generation needs it" />
+            <select id="batchQueryMode">
+              <option value="smart">Smart query mode</option>
+              <option value="basic">Basic query mode</option>
+            </select>
+            <label style="display:flex;align-items:center;gap:6px;margin:0;font-weight:600;">
+              <input id="allowReviewRequired" type="checkbox" />
+              Allow review-required drafts
+            </label>
+            <select id="batchFilter" onchange="renderBatch()">
+              <option value="all">All statuses</option>
+              <option value="ready">Ready</option>
+              <option value="review_required">Review required</option>
+              <option value="blocked">Blocked</option>
+            </select>
+          </div>
+        </div>
+        <div class="toolbar-note">Use the demo batch for the cleanest walkthrough. CSV run is best for live operator flow, while bundle imports restore a previously reviewed state.</div>
       </section>
       <section class="card">
-        <h2 class="section-title">Review verdict</h2>
+        <h2 class="section-title">Current review status</h2>
+        <p class="section-lead">This reflects the dossier state for the currently opened lead.</p>
         <div id="reviewStatus"></div>
         <div class="source">
           <strong>Operator decision</strong>
@@ -98,7 +261,70 @@
     <div class="grid">
       <div class="stack">
         <section class="card">
-          <h2 class="section-title">Dossier summary</h2>
+          <h2 class="section-title">Batch queue</h2>
+          <p class="section-lead">Start here to see what is ready to ship, what still needs review, and what is blocked.</p>
+          <div id="batchEmpty" class="muted empty-state">Load the demo batch or import a batch artifact to populate the review queue.</div>
+          <div id="batchSummary" class="batch-summary"></div>
+          <div id="bundleSummary" class="bundle-box muted" style="display:none;"></div>
+          <div id="queueHint" class="hint-box">Load a batch to see the clearest next operator action.</div>
+          <div class="action-group">
+            <span class="action-label">Export ready leads</span>
+            <div class="batch-actions">
+              <button class="save" onclick="exportReadyJson()">Export ready JSON</button>
+              <button class="save" onclick="exportReadyCsv()">Export ready CSV</button>
+            </div>
+          </div>
+          <div class="action-group">
+            <span class="action-label">Export approved handoff</span>
+            <div class="batch-actions">
+              <button class="save" onclick="exportApprovedJson()">Export approved JSON</button>
+              <button class="save" onclick="exportApprovedCsv()">Export approved CSV</button>
+              <button class="save" onclick="exportApprovedBundle()">Export approved bundle</button>
+              <button class="save" onclick="exportHandoffBundle()">Export full handoff bundle</button>
+            </div>
+          </div>
+          <div id="batchList" class="batch-list"></div>
+        </section>
+
+        <section class="card">
+          <h2 class="section-title">Coverage dashboard</h2>
+          <p class="section-lead">Use these shortcuts to close the most common gaps before final export.</p>
+          <div id="opsEmpty" class="muted empty-state">Load a batch or bundle to see draft coverage, saved review coverage, and approval progress.</div>
+          <div class="action-group">
+            <span class="action-label">Resolve missing work</span>
+            <div class="batch-actions">
+              <button class="save" onclick="openNextReadyWithoutDraft()">Open next ready lead without draft</button>
+              <button class="save" onclick="generateReadyMissingDrafts()">Generate drafts for ready leads</button>
+              <button class="save" onclick="saveAllReadyMissingReviews()">Save all missing ready reviews</button>
+              <button class="save" onclick="approveAllReadySavedReviews()">Approve all ready saved reviews</button>
+            </div>
+          </div>
+          <div id="opsGrid" class="ops-grid"></div>
+          <div id="opsHint" class="hint-box">Load a batch to see the quickest path to complete draft, review, and approval coverage.</div>
+          <div class="two-col" style="margin-top:12px;">
+            <div>
+              <h3 class="section-title">Ready leads missing draft</h3>
+              <div id="opsMissingDrafts" class="batch-list"></div>
+            </div>
+            <div>
+              <h3 class="section-title">Ready leads missing saved review</h3>
+              <div id="opsMissingSavedReviews" class="batch-list"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2 class="section-title">Saved operator reviews</h2>
+          <p class="section-lead">These files are the durable checkpoint between review and export.</p>
+          <div id="savedReviewsEmpty" class="muted empty-state">No saved review files yet. Save at least one reviewed ready lead to create exportable approval state.</div>
+          <div class="batch-actions">
+            <button class="save" onclick="loadSavedReviews()">Refresh saved reviews</button>
+          </div>
+          <div id="savedReviewsList" class="batch-list"></div>
+        </section>
+
+        <section class="card">
+          <h2 class="section-title">Lead summary</h2>
           <p id="summaryText"></p>
           <div class="source">
             <strong>Summary source</strong>
@@ -107,7 +333,7 @@
         </section>
 
         <section class="card">
-          <h2 class="section-title">Warnings & reasons</h2>
+          <h2 class="section-title">Warnings and review reasons</h2>
           <ul id="warningsList"></ul>
           <div class="source">
             <strong>Next step</strong>
@@ -116,7 +342,7 @@
         </section>
 
         <section class="card">
-          <h2 class="section-title">Ranked contacts</h2>
+          <h2 class="section-title">Ranked contact candidates</h2>
           <div id="contacts"></div>
         </section>
 
@@ -128,7 +354,8 @@
 
       <div class="stack">
         <section class="card">
-          <h2 class="section-title">Edit draft</h2>
+          <h2 class="section-title">Review and edit draft</h2>
+          <p class="section-lead">Confirm the target contact, polish the draft, then record the operator decision.</p>
           <div class="two-col">
             <div>
               <label for="targetContact">Target contact</label>
@@ -160,6 +387,7 @@
             <button class="reject" onclick="setDecision('rejected')">Reject</button>
             <button class="needs-review" onclick="setDecision('needs_review')">Needs review</button>
             <button class="save" onclick="saveReview()">Save</button>
+            <button class="save" onclick="saveAsReviewFile()">Save as review file</button>
           </div>
           <div id="flash" class="flash">Saved</div>
         </section>
@@ -169,9 +397,25 @@
 
   <script>
     let state = null;
+    let batchState = null;
+    let activeBatchIndex = null;
+    let savedReviewsState = [];
+    let bundleSummaryState = null;
 
     function badgeClass(status) {
       return ['ready', 'review_required', 'blocked'].includes(status) ? status : 'review_required';
+    }
+
+    function prettyStatus(status) {
+      const labels = {
+        ready: 'Ready',
+        review_required: 'Review required',
+        blocked: 'Blocked',
+        approved: 'Approved',
+        rejected: 'Rejected',
+        needs_review: 'Needs review'
+      };
+      return labels[status] || status || 'Unknown';
     }
 
     function esc(value) {
@@ -193,17 +437,18 @@
     }
 
     function render() {
+      if (!state) return;
       const dossier = state.dossier;
       const decision = state.review_decision;
       document.getElementById('leadMeta').textContent = `${state.lead.company} · ${state.lead.domain || 'no domain'} · offer: ${state.lead.offer || 'n/a'}`;
       document.getElementById('leadChips').innerHTML = [
-        `review=${dossier.review.status}`,
-        `confidence=${dossier.confidence}`,
-        `best_contact=${dossier.best_contact_email || 'none'}`
+        `Review: ${prettyStatus(dossier.review.status)}`,
+        `Confidence: ${dossier.confidence ?? 'n/a'}`,
+        `Best contact: ${dossier.best_contact_email || 'none'}`
       ].map(v => `<span class="chip">${esc(v)}</span>`).join('');
 
-      document.getElementById('reviewStatus').innerHTML = `<span class="status ${badgeClass(dossier.review.status)}">${esc(dossier.review.status)}</span>`;
-      document.getElementById('operatorStatus').textContent = `${decision.status} · updated ${decision.updated_at}`;
+      document.getElementById('reviewStatus').innerHTML = `<span class="status ${badgeClass(dossier.review.status)}">${esc(prettyStatus(dossier.review.status))}</span>`;
+      document.getElementById('operatorStatus').textContent = `${prettyStatus(decision.status)} · updated ${decision.updated_at}`;
       document.getElementById('summaryText').textContent = dossier.summary || 'No summary available';
       document.getElementById('summarySource').textContent = sourceLabel(dossier.summary_source);
       renderList('warningsList', [...(dossier.warnings || []), ...(dossier.review.reasons || [])], 'No warnings');
@@ -230,6 +475,688 @@
       document.getElementById('body').value = state.draft.body || '';
       document.getElementById('notes').value = decision.notes || '';
       document.getElementById('decision').value = decision.status || 'needs_review';
+    }
+
+    function normalizeReviewState(item) {
+      const dossier = ((item?.artifacts?.dossier) || item?.dossier || item || {});
+      const review = ((item?.artifacts?.review) || dossier.review || {});
+      const draft = ((item?.artifacts?.draft) || item?.draft || {});
+      const input = item?.input || {};
+      return {
+        lead: {
+          company: input.company || dossier.company || 'Unknown company',
+          domain: input.domain || dossier.primary_domain || null,
+          offer: input.offer || null,
+        },
+        dossier,
+        draft: {
+          subject: draft.subject || '',
+          body: draft.body || '',
+          target_contact: draft.target_contact || dossier.best_contact_email || '',
+        },
+        review_decision: {
+          status: 'needs_review',
+          notes: '',
+          updated_at: 'batch-selected',
+        },
+      };
+    }
+
+    function openBatchLead(index) {
+      const results = extractBatchResults(batchState);
+      const item = results[index];
+      if (!item) return;
+      activeBatchIndex = index;
+      state = normalizeReviewState(item);
+      render();
+      renderBatch();
+    }
+
+    function extractBatchResults(payload) {
+      if (Array.isArray(payload)) return payload;
+      if (payload && Array.isArray(payload.results)) return payload.results;
+      return [];
+    }
+
+    function getBatchStatus(item) {
+      return (item?.result?.status) || (item?.review?.status) || (item?.dossier?.review?.status) || 'blocked';
+    }
+
+    function getBatchCompany(item) {
+      return item?.input?.company || item?.company || item?.dossier?.company || item?.artifacts?.dossier?.company || 'Unknown company';
+    }
+
+    function getBatchDomain(item) {
+      return item?.input?.domain || item?.primary_domain || item?.dossier?.primary_domain || item?.artifacts?.dossier?.primary_domain || 'n/a';
+    }
+
+    function getBatchBestContact(item) {
+      return item?.best_contact_email || item?.dossier?.best_contact_email || item?.artifacts?.dossier?.best_contact_email || 'n/a';
+    }
+
+    function getBatchDraftState(item) {
+      const draft = (item?.artifacts?.draft) || item?.draft || {};
+      return Boolean((draft.subject || '').trim() || (draft.body || '').trim());
+    }
+
+    function getSavedReviewLookup() {
+      const lookup = new Map();
+      savedReviewsState.forEach(item => {
+        lookup.set(String(item.company || '').toLowerCase(), item);
+      });
+      return lookup;
+    }
+
+    function getRecommendedBatchIndex(results) {
+      if (!results.length) return null;
+      const readyWithoutDraftIndex = results.findIndex(item => getBatchStatus(item) === 'ready' && !getBatchDraftState(item));
+      if (readyWithoutDraftIndex >= 0) return readyWithoutDraftIndex;
+      const readyIndex = results.findIndex(item => getBatchStatus(item) === 'ready');
+      if (readyIndex >= 0) return readyIndex;
+      const reviewIndex = results.findIndex(item => getBatchStatus(item) === 'review_required');
+      if (reviewIndex >= 0) return reviewIndex;
+      return 0;
+    }
+
+    function maybeSelectRecommendedLead() {
+      if (!batchState || activeBatchIndex !== null) return;
+      const results = extractBatchResults(batchState);
+      const index = getRecommendedBatchIndex(results);
+      if (index !== null && index >= 0) {
+        openBatchLead(index);
+      }
+    }
+
+    function renderBatch() {
+      const empty = document.getElementById('batchEmpty');
+      const summary = document.getElementById('batchSummary');
+      const list = document.getElementById('batchList');
+      const bundleSummary = document.getElementById('bundleSummary');
+      const queueHint = document.getElementById('queueHint');
+      if (!batchState) {
+        empty.style.display = 'block';
+        summary.innerHTML = '';
+        list.innerHTML = '';
+        bundleSummary.style.display = 'none';
+        bundleSummary.textContent = '';
+        queueHint.textContent = 'Load a batch to see the clearest next operator action.';
+        return;
+      }
+
+      const results = extractBatchResults(batchState);
+      const filter = document.getElementById('batchFilter').value;
+      const filtered = filter === 'all' ? results : results.filter(item => getBatchStatus(item) === filter);
+      const savedLookup = getSavedReviewLookup();
+      const counts = { ready: 0, review_required: 0, blocked: 0, total: results.length };
+      results.forEach(item => {
+        const status = getBatchStatus(item);
+        counts[status] = (counts[status] || 0) + 1;
+      });
+
+      empty.style.display = 'none';
+      summary.innerHTML = [
+        ['Total leads', counts.total],
+        ['Ready', counts.ready || 0],
+        ['Review required', counts.review_required || 0],
+        ['Blocked', counts.blocked || 0],
+      ].map(([label, value]) => `<div class="batch-box"><strong>${esc(value)}</strong><br><small>${esc(label)}</small></div>`).join('');
+
+      if (bundleSummaryState) {
+        bundleSummary.style.display = 'block';
+        bundleSummary.innerHTML = `<span class="mini-label">Imported bundle summary</span>Ready ${esc(bundleSummaryState.ready_count)} of ${esc(bundleSummaryState.total_results)} leads · ${esc(bundleSummaryState.saved_reviews_count)} saved reviews restored`;
+      } else {
+        bundleSummary.style.display = 'none';
+        bundleSummary.textContent = '';
+      }
+
+      const readyWithoutDraftCount = results.filter(item => getBatchStatus(item) === 'ready' && !getBatchDraftState(item)).length;
+      const readyWithoutSavedCount = results.filter(item => {
+        const saved = savedLookup.get(getBatchCompany(item).toLowerCase());
+        return getBatchStatus(item) === 'ready' && !saved;
+      }).length;
+      if (readyWithoutDraftCount > 0) {
+        queueHint.textContent = `Best next step: ${readyWithoutDraftCount} ready lead${readyWithoutDraftCount === 1 ? '' : 's'} still need a draft.`;
+      } else if (readyWithoutSavedCount > 0) {
+        queueHint.textContent = `Best next step: ${readyWithoutSavedCount} ready lead${readyWithoutSavedCount === 1 ? '' : 's'} still need a saved review file.`;
+      } else if (counts.ready > 0) {
+        queueHint.textContent = 'Best next step: review a ready lead, confirm the decision, then export the approved handoff.';
+      } else if (counts.review_required > 0) {
+        queueHint.textContent = 'Best next step: inspect review-required leads and decide whether any deserve a manual override.';
+      } else {
+        queueHint.textContent = 'No ready leads yet. This batch is mostly blocked or still waiting on better evidence.';
+      }
+
+      list.innerHTML = filtered.map(item => {
+        const originalIndex = results.indexOf(item);
+        const isActive = originalIndex === activeBatchIndex;
+        const savedReview = savedLookup.get(getBatchCompany(item).toLowerCase());
+        const hasDraft = getBatchDraftState(item);
+        const itemMeta = [
+          hasDraft ? '<span class="mini-chip ok">Draft ready</span>' : '<span class="mini-chip warn">No draft</span>',
+          savedReview ? '<span class="mini-chip ok">Saved review</span>' : '<span class="mini-chip warn">No saved review</span>',
+          savedReview && savedReview.decision_status === 'approved'
+            ? '<span class="mini-chip ok">Approved</span>'
+            : '<span class="mini-chip">Decision pending</span>'
+        ].join('');
+        return `
+        <button type="button" class="batch-item ${isActive ? 'active' : ''}" onclick="openBatchLead(${originalIndex})">
+          <h4>${esc(getBatchCompany(item))}</h4>
+          <small>${esc(getBatchDomain(item))} · ${esc(getBatchBestContact(item))}</small>
+          <div style="margin-top:8px;"><span class="status ${badgeClass(getBatchStatus(item))}">${esc(prettyStatus(getBatchStatus(item)))}</span></div>
+          <div class="batch-meta">${itemMeta}</div>
+        </button>
+      `;
+      }).join('') || '<div class="muted">No leads match this filter.</div>';
+    }
+
+    function renderSavedReviews() {
+      const empty = document.getElementById('savedReviewsEmpty');
+      const list = document.getElementById('savedReviewsList');
+      if (!savedReviewsState.length) {
+        empty.style.display = 'block';
+        list.innerHTML = '';
+        return;
+      }
+      empty.style.display = 'none';
+      list.innerHTML = savedReviewsState.map((item, index) => `
+        <button type="button" class="batch-item saved-review" onclick="openSavedReviewByIndex(${index})">
+          <h4>${esc(item.company)}</h4>
+          <small>${esc(item.filename)} · ${esc(item.domain)} · updated ${esc(item.updated_at)}</small>
+          <div style="margin-top:8px;">
+            <span class="status ${badgeClass(item.review_status)}">${esc(prettyStatus(item.review_status))}</span>
+          </div>
+          <small>Decision: ${esc(prettyStatus(item.decision_status))}</small>
+        </button>
+      `).join('');
+    }
+
+    function renderOpsDashboard() {
+      const empty = document.getElementById('opsEmpty');
+      const grid = document.getElementById('opsGrid');
+      const missingDrafts = document.getElementById('opsMissingDrafts');
+      const missingSavedReviews = document.getElementById('opsMissingSavedReviews');
+      const opsHint = document.getElementById('opsHint');
+      if (!batchState) {
+        empty.style.display = 'block';
+        grid.innerHTML = '';
+        missingDrafts.innerHTML = '';
+        missingSavedReviews.innerHTML = '';
+        opsHint.textContent = 'Load a batch to see the quickest path to complete draft, review, and approval coverage.';
+        return;
+      }
+
+      const results = extractBatchResults(batchState);
+      const ready = results.filter(item => getBatchStatus(item) === 'ready');
+      const readyWithDraft = ready.filter(item => {
+        const draft = (item?.artifacts?.draft) || item?.draft || {};
+        return Boolean((draft.subject || '').trim() || (draft.body || '').trim());
+      });
+      const readyCompanies = new Set(ready.map(item => getBatchCompany(item).toLowerCase()));
+      const savedCompanies = new Set(savedReviewsState.map(item => String(item.company || '').toLowerCase()));
+      const approvedSavedCompanies = new Set(
+        savedReviewsState
+          .filter(item => item.review_status === 'ready' && item.decision_status === 'approved')
+          .map(item => String(item.company || '').toLowerCase())
+      );
+      const readyWithSavedReview = ready.filter(item => savedCompanies.has(getBatchCompany(item).toLowerCase()));
+      const readyApproved = ready.filter(item => approvedSavedCompanies.has(getBatchCompany(item).toLowerCase()));
+      const draftCoverage = ready.length ? Math.round((readyWithDraft.length / ready.length) * 100) : 0;
+      const savedCoverage = ready.length ? Math.round((readyWithSavedReview.length / ready.length) * 100) : 0;
+      const approvedCoverage = ready.length ? Math.round((readyApproved.length / ready.length) * 100) : 0;
+
+      empty.style.display = 'none';
+      grid.innerHTML = [
+        ['Ready leads', ready.length],
+        ['Draft coverage', `${draftCoverage}%`],
+        ['Saved review coverage', `${savedCoverage}%`],
+        ['Approved coverage', `${approvedCoverage}%`],
+        ['Saved review files', savedReviewsState.length],
+      ].map(([label, value]) => `<div class="ops-box"><strong>${esc(value)}</strong><small>${esc(label)}</small></div>`).join('');
+
+      if (!ready.length) {
+        opsHint.textContent = 'There are no ready leads yet, so export is gated upstream by trust review.';
+      } else if (draftCoverage < 100) {
+        opsHint.textContent = 'Fastest path: generate or open the remaining ready leads that still have no draft.';
+      } else if (savedCoverage < 100) {
+        opsHint.textContent = 'Fastest path: save review files for the remaining ready leads before handoff.';
+      } else if (approvedCoverage < 100) {
+        opsHint.textContent = 'Fastest path: approve the saved ready reviews that should move into the final handoff bundle.';
+      } else {
+        opsHint.textContent = 'Coverage is complete. The batch is ready for approved export.';
+      }
+
+      const missingDraftItems = ready.filter(item => {
+        const draft = (item?.artifacts?.draft) || item?.draft || {};
+        return !((draft.subject || '').trim() || (draft.body || '').trim());
+      });
+      missingDrafts.innerHTML = missingDraftItems.map(item => `
+        <div class="batch-item">
+          <h4>${esc(getBatchCompany(item))}</h4>
+          <small>${esc(getBatchDomain(item))} · ready but no draft</small>
+        </div>
+      `).join('') || '<div class="muted">All ready leads have drafts.</div>';
+
+      const missingSavedItems = ready.filter(item => !savedCompanies.has(getBatchCompany(item).toLowerCase()));
+      missingSavedReviews.innerHTML = missingSavedItems.map(item => `
+        <div class="batch-item">
+          <h4>${esc(getBatchCompany(item))}</h4>
+          <small>${esc(getBatchDomain(item))} · ready but no saved review file</small>
+        </div>
+      `).join('') || '<div class="muted">All ready leads have saved review coverage.</div>';
+    }
+
+    function buildReviewPayloadFromBatchItem(item) {
+      const normalized = normalizeReviewState(item);
+      return {
+        lead: normalized.lead,
+        dossier: normalized.dossier,
+        draft: normalized.draft,
+        review_decision: {
+          status: 'needs_review',
+          notes: '',
+          updated_at: new Date().toISOString(),
+        },
+      };
+    }
+
+    function getReadyWithoutDraftItems() {
+      const results = extractBatchResults(batchState);
+      return results.filter(item => {
+        if (getBatchStatus(item) !== 'ready') return false;
+        const draft = (item?.artifacts?.draft) || item?.draft || {};
+        return !((draft.subject || '').trim() || (draft.body || '').trim());
+      });
+    }
+
+    function getReadyWithoutSavedReviewItems() {
+      const results = extractBatchResults(batchState);
+      const savedCompanies = new Set(savedReviewsState.map(item => String(item.company || '').toLowerCase()));
+      return results.filter(item => getBatchStatus(item) === 'ready' && !savedCompanies.has(getBatchCompany(item).toLowerCase()));
+    }
+
+    function openNextReadyWithoutDraft() {
+      if (!batchState) {
+        alert('Load a batch first');
+        return;
+      }
+      const results = extractBatchResults(batchState);
+      const target = getReadyWithoutDraftItems()[0];
+      if (!target) {
+        alert('All ready leads already have drafts');
+        return;
+      }
+      const index = results.indexOf(target);
+      if (index >= 0) openBatchLead(index);
+    }
+
+    async function saveAllReadyMissingReviews() {
+      if (!batchState) {
+        alert('Load a batch first');
+        return;
+      }
+      const items = getReadyWithoutSavedReviewItems();
+      if (!items.length) {
+        alert('All ready leads already have saved review files');
+        return;
+      }
+      const reviews = items.map(buildReviewPayloadFromBatchItem);
+      const response = await fetch('/api/saved-reviews/save-many', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reviews })
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        alert(payload.error || 'Bulk save failed');
+        return;
+      }
+      await loadSavedReviews();
+      const flash = document.getElementById('flash');
+      flash.textContent = `Saved ${payload.count} review files`;
+      flash.style.display = 'block';
+      setTimeout(() => {
+        flash.style.display = 'none';
+        flash.textContent = 'Saved';
+      }, 2200);
+    }
+
+    async function generateReadyMissingDrafts() {
+      if (!batchState) {
+        alert('Load a batch first');
+        return;
+      }
+      const items = getReadyWithoutDraftItems();
+      if (!items.length) {
+        alert('All ready leads already have drafts');
+        return;
+      }
+      const response = await fetch('/api/batch/generate-drafts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          batch: batchState,
+          offer: document.getElementById('batchOffer').value || null
+        })
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        alert(payload.error || 'Bulk draft generation failed');
+        return;
+      }
+      batchState = payload.batch;
+      renderBatch();
+      renderOpsDashboard();
+      const flash = document.getElementById('flash');
+      flash.textContent = `Generated ${payload.generated_count} drafts`;
+      flash.style.display = 'block';
+      setTimeout(() => {
+        flash.style.display = 'none';
+        flash.textContent = 'Saved';
+      }, 2200);
+    }
+
+    async function approveAllReadySavedReviews() {
+      if (!batchState) {
+        alert('Load a batch first');
+        return;
+      }
+      const readyCompanies = new Set(
+        extractBatchResults(batchState)
+          .filter(item => getBatchStatus(item) === 'ready')
+          .map(item => getBatchCompany(item).toLowerCase())
+      );
+      const filenames = savedReviewsState
+        .filter(item => item.review_status === 'ready' && item.decision_status !== 'approved' && readyCompanies.has(String(item.company || '').toLowerCase()))
+        .map(item => item.filename);
+      if (!filenames.length) {
+        alert('No ready saved reviews to approve');
+        return;
+      }
+      const response = await fetch('/api/saved-reviews/approve-many', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filenames })
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        alert(payload.error || 'Bulk approve failed');
+        return;
+      }
+      await loadSavedReviews();
+      const flash = document.getElementById('flash');
+      flash.textContent = `Approved ${payload.count} saved reviews`;
+      flash.style.display = 'block';
+      setTimeout(() => {
+        flash.style.display = 'none';
+        flash.textContent = 'Saved';
+      }, 2200);
+    }
+
+    async function loadDemoBatch() {
+      const response = await fetch('/api/demo-batch');
+      batchState = await response.json();
+      activeBatchIndex = null;
+      bundleSummaryState = null;
+      renderBatch();
+      renderOpsDashboard();
+      maybeSelectRecommendedLead();
+    }
+
+    async function loadBatchFile(event) {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      const text = await file.text();
+      batchState = JSON.parse(text);
+      activeBatchIndex = null;
+      bundleSummaryState = null;
+      renderBatch();
+      renderOpsDashboard();
+      maybeSelectRecommendedLead();
+    }
+
+    async function importBundleZip(event) {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      let binary = '';
+      for (let i = 0; i < bytes.length; i += 1) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const response = await fetch('/api/batch/import-bundle-zip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ zip_base64: btoa(binary) })
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        alert(payload.error || 'Bundle import failed');
+        return;
+      }
+      batchState = payload.imported.batch;
+      savedReviewsState = payload.imported.saved_reviews || [];
+      bundleSummaryState = payload.imported.bundle_summary || null;
+      activeBatchIndex = null;
+      renderBatch();
+      renderSavedReviews();
+      renderOpsDashboard();
+      maybeSelectRecommendedLead();
+    }
+
+    async function importApprovedBundleZip(event) {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      let binary = '';
+      for (let i = 0; i < bytes.length; i += 1) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const response = await fetch('/api/batch/import-approved-bundle-zip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ zip_base64: btoa(binary) })
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        alert(payload.error || 'Approved bundle import failed');
+        return;
+      }
+      batchState = payload.imported.batch;
+      savedReviewsState = payload.imported.saved_reviews || [];
+      bundleSummaryState = payload.imported.bundle_summary || null;
+      activeBatchIndex = null;
+      renderBatch();
+      renderSavedReviews();
+      renderOpsDashboard();
+      maybeSelectRecommendedLead();
+    }
+
+    async function loadSavedReviews() {
+      const response = await fetch('/api/saved-reviews');
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        alert(payload.error || 'Saved reviews load failed');
+        return;
+      }
+      savedReviewsState = payload.items || [];
+      renderSavedReviews();
+      renderOpsDashboard();
+    }
+
+    async function openSavedReviewByIndex(index) {
+      const item = savedReviewsState[index];
+      if (!item) return;
+      const response = await fetch('/api/saved-reviews/open', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: item.filename })
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        alert(payload.error || 'Saved review open failed');
+        return;
+      }
+      state = payload.review;
+      render();
+    }
+
+    async function runBatchCsvFile(event) {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      const csvText = await file.text();
+      const response = await fetch('/api/batch/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          csv_text: csvText,
+          offer: document.getElementById('batchOffer').value || null,
+          query_mode: document.getElementById('batchQueryMode').value || 'smart',
+          allow_review_required: document.getElementById('allowReviewRequired').checked
+        })
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        alert(payload.error || 'CSV batch run failed');
+        return;
+      }
+      batchState = payload.batch;
+      activeBatchIndex = null;
+      bundleSummaryState = null;
+      renderBatch();
+      renderOpsDashboard();
+      maybeSelectRecommendedLead();
+    }
+
+    function downloadText(filename, text, contentType) {
+      const blob = new Blob([text], { type: contentType });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function downloadBase64(filename, base64Text, contentType) {
+      const binary = atob(base64Text);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: contentType });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    async function exportReadyJson() {
+      if (!batchState) {
+        alert('Load or run a batch first');
+        return;
+      }
+      const response = await fetch('/api/batch/export-ready', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batch: batchState })
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        alert(payload.error || 'Ready JSON export failed');
+        return;
+      }
+      downloadText('ready-leads.json', `${JSON.stringify(payload.export, null, 2)}\n`, 'application/json');
+    }
+
+    async function exportReadyCsv() {
+      if (!batchState) {
+        alert('Load or run a batch first');
+        return;
+      }
+      const response = await fetch('/api/batch/export-ready-csv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batch: batchState })
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        alert(payload.error || 'Ready CSV export failed');
+        return;
+      }
+      downloadText('ready-leads.csv', payload.csv_text, 'text/csv;charset=utf-8');
+    }
+
+    async function exportApprovedJson() {
+      if (!batchState) {
+        alert('Load or run a batch first');
+        return;
+      }
+      const response = await fetch('/api/batch/export-approved', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batch: batchState })
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        alert(payload.error || 'Approved JSON export failed');
+        return;
+      }
+      downloadText('approved-ready-leads.json', `${JSON.stringify(payload.export, null, 2)}\n`, 'application/json');
+    }
+
+    async function exportApprovedCsv() {
+      if (!batchState) {
+        alert('Load or run a batch first');
+        return;
+      }
+      const response = await fetch('/api/batch/export-approved-csv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batch: batchState })
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        alert(payload.error || 'Approved CSV export failed');
+        return;
+      }
+      downloadText('approved-ready-leads.csv', payload.csv_text, 'text/csv;charset=utf-8');
+    }
+
+    async function exportApprovedBundle() {
+      if (!batchState) {
+        alert('Load or run a batch first');
+        return;
+      }
+      const response = await fetch('/api/batch/export-approved-bundle-zip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batch: batchState })
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        alert(payload.error || 'Approved bundle export failed');
+        return;
+      }
+      downloadBase64(payload.filename || 'approved-ready-bundle.zip', payload.zip_base64, 'application/zip');
+    }
+
+    async function exportHandoffBundle() {
+      if (!batchState) {
+        alert('Load or run a batch first');
+        return;
+      }
+      const response = await fetch('/api/batch/export-bundle-zip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batch: batchState })
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        alert(payload.error || 'Handoff bundle export failed');
+        return;
+      }
+      downloadBase64(payload.filename || 'lead-handoff-bundle.zip', payload.zip_base64, 'application/zip');
     }
 
     function setDecision(value) {
@@ -266,7 +1193,44 @@
       setTimeout(() => { flash.style.display = 'none'; }, 1500);
     }
 
-    loadReview();
+    async function saveAsReviewFile() {
+      state.draft.target_contact = document.getElementById('targetContact').value;
+      state.draft.subject = document.getElementById('subject').value;
+      state.draft.body = document.getElementById('body').value;
+      state.review_decision.status = document.getElementById('decision').value;
+      state.review_decision.notes = document.getElementById('notes').value;
+      state.review_decision.updated_at = new Date().toISOString();
+      const response = await fetch('/api/review/save-as', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(state)
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        alert(payload.error || 'Save as review file failed');
+        return;
+      }
+      await loadSavedReviews();
+      const flash = document.getElementById('flash');
+      flash.textContent = `Saved to ${payload.path}`;
+      flash.style.display = 'block';
+      setTimeout(() => {
+        flash.style.display = 'none';
+        flash.textContent = 'Saved';
+      }, 2200);
+    }
+
+    async function initializePage() {
+      await loadReview();
+      await loadSavedReviews();
+      try {
+        await loadDemoBatch();
+      } catch (error) {
+        // Demo batch is optional for plain review-file launches.
+      }
+    }
+
+    initializePage();
   </script>
 </body>
 </html>
