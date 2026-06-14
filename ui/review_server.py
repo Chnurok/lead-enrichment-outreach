@@ -23,8 +23,8 @@ DEFAULT_REVIEW_PATH = ROOT / "examples" / "demo-review.json"
 DEFAULT_HTML_PATH = ROOT / "ui" / "index.html"
 DEFAULT_DEMO_DOSSIER_PATH = ROOT / "examples" / "demo" / "ready" / "deepl-dossier.json"
 DEFAULT_DEMO_DRAFT_PATH = ROOT / "examples" / "demo" / "ready" / "deepl-draft.json"
-DEFAULT_DEMO_LEADS_CSV_PATH = ROOT / "examples" / "demo-leads.csv"
 DEFAULT_DEMO_BATCH_PATH = ROOT / "examples" / "demo-output.json"
+DEFAULT_DEMO_INDEX_PATH = ROOT / "examples" / "demo" / "index.json"
 DEFAULT_DEMO_OFFER = "AI-assisted lead enrichment and outreach"
 HOST = os.getenv("HOST", "127.0.0.1")
 PORT = int(os.getenv("PORT", "8095"))
@@ -37,6 +37,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 import batch_workflow_csv
 import export_ready_leads
 import generate_outreach
+import workflow
 
 
 class ApiError(Exception):
@@ -621,6 +622,9 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
             parsed = urlparse(self.path)
+            if parsed.path == "/favicon.ico":
+                self._send_text(204, "", "image/x-icon")
+                return
             if parsed.path in {"/health", "/healthz"}:
                 self._send_json(200, self.build_health_payload())
                 return
@@ -787,12 +791,77 @@ def build_demo_review(dossier_path: Path, draft_path: Path, output_path: Path):
     return payload
 
 
-def build_demo_batch(output_path: Path, offer=DEFAULT_DEMO_OFFER, query_mode="smart", allow_review_required=False):
-    csv_text = DEFAULT_DEMO_LEADS_CSV_PATH.read_text(encoding="utf-8")
-    artifact = run_batch_from_csv_text(
-        csv_text,
+def load_demo_scenarios(index_path: Path | None = None):
+    index_path = index_path or DEFAULT_DEMO_INDEX_PATH
+    with index_path.open(encoding="utf-8") as fh:
+        payload = json.load(fh)
+    scenarios = payload.get("demo_scenarios")
+    if not isinstance(scenarios, list) or not scenarios:
+        raise ApiError(400, f"Demo index has no scenarios: {index_path}")
+    return scenarios
+
+
+def build_demo_batch_artifact(scenarios, offer=DEFAULT_DEMO_OFFER, allow_review_required=False):
+    results = []
+    for scenario in scenarios:
+        if not isinstance(scenario, dict):
+            continue
+        status = scenario.get("status")
+        if status == "refusal":
+            continue
+
+        dossier_path = ROOT / str(scenario.get("path") or "")
+        if not dossier_path.exists():
+            raise ApiError(404, f"Demo dossier not found: {dossier_path}")
+        with dossier_path.open(encoding="utf-8") as fh:
+            dossier = json.load(fh)
+
+        draft = None
+        draft_path_value = scenario.get("draft")
+        draft_override_value = scenario.get("draft_override")
+        draft_path = ROOT / str(draft_path_value) if draft_path_value else None
+        draft_override_path = ROOT / str(draft_override_value) if draft_override_value else None
+
+        if draft_path and draft_path.exists():
+            with draft_path.open(encoding="utf-8") as fh:
+                draft = json.load(fh)
+        elif allow_review_required and draft_override_path and draft_override_path.exists():
+            with draft_override_path.open(encoding="utf-8") as fh:
+                draft = json.load(fh)
+
+        review = dossier.get("review") or {}
+        company = dossier.get("company") or scenario.get("company")
+        domain = dossier.get("primary_domain")
+        scenario_status = review.get("status") or status or "blocked"
+
+        results.append(
+            workflow.build_artifact(
+                company=company,
+                domain=domain,
+                offer=offer,
+                dossier=dossier,
+                draft=draft,
+                allow_review_required=allow_review_required,
+            )
+        )
+        results[-1]["result"]["status"] = scenario_status
+        results[-1]["result"]["ready_for_outreach"] = bool(review.get("ready_for_outreach"))
+        results[-1]["result"]["requires_review"] = scenario_status == "review_required"
+        results[-1]["result"]["draft_generated"] = bool(draft)
+
+    return batch_workflow_csv.build_batch_artifact(
+        results,
+        source_csv="examples/demo/index.json",
         offer=offer,
-        query_mode=query_mode,
+        query_mode="demo",
+        allow_review_required=allow_review_required,
+    )
+
+
+def build_demo_batch(output_path: Path, offer=DEFAULT_DEMO_OFFER, allow_review_required=False):
+    artifact = build_demo_batch_artifact(
+        load_demo_scenarios(),
+        offer=offer,
         allow_review_required=allow_review_required,
     )
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -800,9 +869,9 @@ def build_demo_batch(output_path: Path, offer=DEFAULT_DEMO_OFFER, query_mode="sm
     return artifact
 
 
-def bootstrap_demo_artifacts(review_path: Path, batch_path: Path, offer=DEFAULT_DEMO_OFFER, query_mode="smart"):
+def bootstrap_demo_artifacts(review_path: Path, batch_path: Path, offer=DEFAULT_DEMO_OFFER):
     build_demo_review(DEFAULT_DEMO_DOSSIER_PATH, DEFAULT_DEMO_DRAFT_PATH, review_path)
-    return build_demo_batch(batch_path, offer=offer, query_mode=query_mode)
+    return build_demo_batch(batch_path, offer=offer)
 
 
 def main():
@@ -815,18 +884,24 @@ def main():
     parser.add_argument("--demo", action="store_true", help="Seed demo review JSON and rebuild the demo batch artifact before serving")
     parser.add_argument("--public", action="store_true", help="Bind to 0.0.0.0 for simple demo hosting")
     parser.add_argument("--demo-offer", default=DEFAULT_DEMO_OFFER, help="Offer used when rebuilding the demo batch artifact")
-    parser.add_argument("--demo-query-mode", choices=("smart", "basic"), default="smart", help="Query mode used when rebuilding the demo batch artifact")
+    parser.add_argument("--build-demo-batch-only", action="store_true", help="Build the deterministic demo batch artifact, print it, and exit")
     args = parser.parse_args()
 
     review_path = Path(args.review_file).resolve()
     batch_path = Path(args.demo_batch_file).resolve()
     host = "0.0.0.0" if args.public else args.host
+    if args.build_demo_batch_only:
+        artifact = build_demo_batch(
+            batch_path,
+            offer=args.demo_offer,
+        )
+        print(json.dumps(artifact, ensure_ascii=False, indent=2))
+        return
     if args.demo:
         bootstrap_demo_artifacts(
             review_path,
             batch_path,
             offer=args.demo_offer,
-            query_mode=args.demo_query_mode,
         )
     elif args.seed_demo:
         build_demo_review(DEFAULT_DEMO_DOSSIER_PATH, DEFAULT_DEMO_DRAFT_PATH, review_path)

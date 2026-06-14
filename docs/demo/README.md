@@ -57,7 +57,7 @@ make ready-export-demo
 ```
 
 This is the payoff for ops:
-- run the same workflow on a CSV
+- rebuild the bundled demo batch from curated fixtures
 - export only `ready` leads for downstream work
 
 ## Demo artifacts

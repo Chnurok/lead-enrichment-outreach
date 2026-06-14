@@ -27,6 +27,7 @@ git clone <REPO_URL> /opt/lead-enrichment-outreach
 cd /opt/lead-enrichment-outreach
 pip install -r requirements.txt
 python3 -m unittest discover -s tests -q
+python3 ui/review_server.py --build-demo-batch-only --demo-batch-file examples/demo-output.json >/tmp/lead-enrichment-demo-batch.json
 ```
 
 ## 2. Install systemd unit
@@ -43,6 +44,12 @@ Check:
 systemctl status lead-enrichment-demo.service --no-pager
 curl -fsS http://127.0.0.1:8095/healthz
 ```
+
+Expected health signals:
+- `demo_batch_exists` is `true`
+- `demo_batch_summary.ready` is `1`
+- `demo_batch_summary.review_required` is `1`
+- `demo_batch_summary.blocked` is `1`
 
 ## 3. Put nginx in front
 
@@ -65,6 +72,7 @@ http://YOUR_HOST/
 cd /opt/lead-enrichment-outreach
 git pull
 python3 -m unittest discover -s tests -q
+python3 ui/review_server.py --build-demo-batch-only --demo-batch-file examples/demo-output.json >/tmp/lead-enrichment-demo-batch.json
 sudo systemctl restart lead-enrichment-demo.service
 curl -fsS http://127.0.0.1:8095/healthz
 ```
@@ -74,3 +82,4 @@ curl -fsS http://127.0.0.1:8095/healthz
 - This is for a demo box, not a production multi-user deployment.
 - The app still has no auth and should only expose sanitized demo data.
 - If you want TLS, terminate it at nginx or a higher-level proxy.
+- The bundled systemd unit already starts the server with `--demo`, but rebuilding the demo batch explicitly during install/update gives you a simple preflight and a file you can inspect if health looks wrong.

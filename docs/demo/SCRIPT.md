@@ -22,7 +22,7 @@ make demo
 
 Say:
 
-`This repo turns a company or CSV lead list into a source-backed dossier, applies a trust gate, drafts only when the evidence is good enough, and keeps the final decision with a human.`
+`This repo turns a company or lead list into a source-backed dossier, applies a trust gate, drafts only when the evidence is good enough, and keeps the final decision with a human.`
 
 ### Step 2
 
@@ -58,7 +58,7 @@ make ready-export-demo
 
 Say:
 
-`For a list of leads, the same workflow produces a batch artifact and then exports only the ready leads for ops.`
+`For demos, we rebuild a deterministic batch artifact from curated fixtures, and then export only the ready leads for ops.`
 
 ## End state
 

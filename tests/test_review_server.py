@@ -68,31 +68,46 @@ class ReviewServerTests(unittest.TestCase):
     def test_build_demo_batch_writes_artifact(self):
         import ui.review_server as review_server
 
-        original_csv = review_server.DEFAULT_DEMO_LEADS_CSV_PATH
-        original_run = review_server.run_batch_from_csv_text
+        original_root = review_server.ROOT
+        original_index = review_server.DEFAULT_DEMO_INDEX_PATH
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
-            csv_path = tmp / "demo.csv"
+            dossier_path = tmp / "dossier.json"
+            draft_path = tmp / "draft.json"
+            index_path = tmp / "index.json"
             output = tmp / "demo-output.json"
-            csv_path.write_text("company,domain\nAcme,acme.com\n", encoding="utf-8")
+            dossier_path.write_text(json.dumps({
+                "company": "Acme",
+                "primary_domain": "acme.com",
+                "summary": "Acme summary",
+                "best_contact_email": "hi@acme.com",
+                "review": {"status": "ready", "ready_for_outreach": True, "reasons": [], "next_step": "draft", "top_contact_candidates": []},
+            }), encoding="utf-8")
+            draft_path.write_text(json.dumps({"subject": "Subj", "body": "Body", "target_contact": "hi@acme.com"}), encoding="utf-8")
+            index_path.write_text(json.dumps({
+                "demo_scenarios": [
+                    {
+                        "status": "ready",
+                        "company": "Acme",
+                        "path": str(dossier_path.relative_to(tmp)),
+                        "draft": str(draft_path.relative_to(tmp)),
+                    }
+                ]
+            }), encoding="utf-8")
 
-            def fake_run_batch(csv_text, offer=None, query_mode="smart", allow_review_required=False):
-                self.assertIn("Acme", csv_text)
-                self.assertEqual(offer, "Offer")
-                self.assertEqual(query_mode, "basic")
-                return {"artifact_type": "lead_enrichment_outreach_batch_workflow", "summary": {"total": 1}, "results": []}
-
-            review_server.DEFAULT_DEMO_LEADS_CSV_PATH = csv_path
-            review_server.run_batch_from_csv_text = fake_run_batch
+            review_server.ROOT = tmp
+            review_server.DEFAULT_DEMO_INDEX_PATH = index_path
             try:
-                artifact = build_demo_batch(output, offer="Offer", query_mode="basic")
+                artifact = build_demo_batch(output, offer="Offer")
             finally:
-                review_server.DEFAULT_DEMO_LEADS_CSV_PATH = original_csv
-                review_server.run_batch_from_csv_text = original_run
+                review_server.DEFAULT_DEMO_INDEX_PATH = original_index
+                review_server.ROOT = original_root
 
             saved = json.loads(output.read_text(encoding="utf-8"))
 
+        self.assertEqual(artifact["summary"]["ready"], 1)
         self.assertEqual(artifact["summary"]["total"], 1)
+        self.assertEqual(artifact["results"][0]["input"]["company"], "Acme")
         self.assertEqual(saved["artifact_type"], "lead_enrichment_outreach_batch_workflow")
 
     def test_bootstrap_demo_artifacts_seeds_review_and_batch(self):
@@ -107,8 +122,8 @@ class ReviewServerTests(unittest.TestCase):
             output_path.write_text("{}", encoding="utf-8")
             return {"ok": True}
 
-        def fake_build_batch(output_path, offer=None, query_mode="smart", allow_review_required=False):
-            calls.append(("batch", output_path, offer, query_mode))
+        def fake_build_batch(output_path, offer=None, allow_review_required=False):
+            calls.append(("batch", output_path, offer))
             output_path.write_text("{}", encoding="utf-8")
             return {"artifact_type": "lead_enrichment_outreach_batch_workflow"}
 
@@ -119,13 +134,13 @@ class ReviewServerTests(unittest.TestCase):
             review_server.build_demo_review = fake_build_review
             review_server.build_demo_batch = fake_build_batch
             try:
-                bootstrap_demo_artifacts(review_path, batch_path, offer="Offer", query_mode="basic")
+                bootstrap_demo_artifacts(review_path, batch_path, offer="Offer")
             finally:
                 review_server.build_demo_review = original_build_review
                 review_server.build_demo_batch = original_build_batch
 
         self.assertEqual(calls[0][0], "review")
-        self.assertEqual(calls[1], ("batch", batch_path, "Offer", "basic"))
+        self.assertEqual(calls[1], ("batch", batch_path, "Offer"))
 
     def test_build_saved_review_path_uses_company_slug(self):
         payload = self.sample_payload()
@@ -564,7 +579,11 @@ class ReviewServerTests(unittest.TestCase):
 
             demo_batch_path = Path(__file__).resolve().parents[1] / "examples" / "demo-output.json"
             original = demo_batch_path.read_text(encoding="utf-8") if demo_batch_path.exists() else None
-            demo_batch_path.write_text(json.dumps([{"company": "DeepL", "review": {"status": "ready"}}]), encoding="utf-8")
+            demo_batch_path.write_text(json.dumps({
+                "artifact_type": "lead_enrichment_outreach_batch_workflow",
+                "summary": {"ready": 1, "review_required": 0, "blocked": 0, "draft_generated": 0, "total": 1},
+                "results": [{"input": {"company": "DeepL"}, "result": {"status": "ready"}}],
+            }), encoding="utf-8")
 
             server = ThreadedHTTPServer(("127.0.0.1", 0), Handler)
             server.store = ReviewStore(path)
@@ -575,7 +594,7 @@ class ReviewServerTests(unittest.TestCase):
                 base = f"http://127.0.0.1:{server.server_address[1]}"
                 with urllib.request.urlopen(f"{base}/api/demo-batch") as resp:
                     batch = json.loads(resp.read().decode("utf-8"))
-                self.assertEqual(batch[0]["company"], "DeepL")
+                self.assertEqual(batch["results"][0]["input"]["company"], "DeepL")
             finally:
                 if original is None:
                     demo_batch_path.unlink(missing_ok=True)

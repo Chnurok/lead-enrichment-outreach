@@ -510,6 +510,7 @@
       state = normalizeReviewState(item);
       render();
       renderBatch();
+      syncActiveLeadFromSavedReview();
     }
 
     function extractBatchResults(payload) {
@@ -545,6 +546,26 @@
         lookup.set(String(item.company || '').toLowerCase(), item);
       });
       return lookup;
+    }
+
+    function getSavedReviewByCompany(company) {
+      if (!company) return null;
+      return savedReviewsState.find(item => String(item.company || '').toLowerCase() === String(company).toLowerCase()) || null;
+    }
+
+    async function syncActiveLeadFromSavedReview() {
+      if (!state?.lead?.company) return;
+      const savedReviewMeta = getSavedReviewByCompany(state.lead.company);
+      if (!savedReviewMeta?.filename) return;
+      const response = await fetch('/api/saved-reviews/open', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: savedReviewMeta.filename })
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) return;
+      state = payload.review;
+      render();
     }
 
     function getRecommendedBatchIndex(results) {
@@ -811,6 +832,7 @@
         return;
       }
       await loadSavedReviews();
+      await syncActiveLeadFromSavedReview();
       const flash = document.getElementById('flash');
       flash.textContent = `Saved ${payload.count} review files`;
       flash.style.display = 'block';
@@ -883,6 +905,7 @@
         return;
       }
       await loadSavedReviews();
+      await syncActiveLeadFromSavedReview();
       const flash = document.getElementById('flash');
       flash.textContent = `Approved ${payload.count} saved reviews`;
       flash.style.display = 'block';
@@ -978,6 +1001,7 @@
         return;
       }
       savedReviewsState = payload.items || [];
+      renderBatch();
       renderSavedReviews();
       renderOpsDashboard();
     }
@@ -1211,6 +1235,7 @@
         return;
       }
       await loadSavedReviews();
+      await syncActiveLeadFromSavedReview();
       const flash = document.getElementById('flash');
       flash.textContent = `Saved to ${payload.path}`;
       flash.style.display = 'block';

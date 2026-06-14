@@ -15,18 +15,21 @@ This does three things:
 - rebuilds `examples/demo-output.json`
 - binds the UI to `0.0.0.0:8095`
 
+The rebuilt batch is deterministic: it comes from `examples/demo/index.json`, not live enrichment calls.
+
 ## Smoke check
 
 On the server:
 
 ```bash
 make demo-public-health
+make batch-demo
 ```
 
 Expected result:
 - JSON from `/healthz`
 - `demo_batch_exists: true`
-- a non-empty `demo_batch_summary`
+- `demo_batch_summary` with `ready=1`, `review_required=1`, `blocked=1`
 
 ## What to expose
 
@@ -54,5 +57,6 @@ http://YOUR_HOST:8095/healthz
 - This is still a lightweight demo surface, not a hardened production deployment.
 - The server is local Python HTTP, no auth, no rate limiting, no reverse proxy by default.
 - Use only with sanitized demo artifacts.
+- If `/healthz` is up but `demo_batch_summary` is empty or stale, rerun `make batch-demo` and refresh the page.
 
 For a longer-lived VPS setup with `systemd` and `nginx`, use `docs/demo/DEPLOY.md`.

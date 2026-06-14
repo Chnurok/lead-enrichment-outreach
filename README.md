@@ -23,7 +23,7 @@ make ready-export-demo
 What each step proves:
 - `make demo` shows the three trust outcomes: `ready`, `review_required`, `blocked`
 - `make demo-ui` opens the operator review surface on `http://127.0.0.1:8095` with the demo review file and demo batch preloaded
-- `make batch-demo` and `make ready-export-demo` show the CSV-to-ops handoff story
+- `make batch-demo` and `make ready-export-demo` show the deterministic demo-batch-to-ops handoff story
 
 Presenter docs:
 - `docs/demo/README.md` — 2-minute walkthrough
@@ -122,7 +122,8 @@ make ready-export-demo
 ```
 
 This closes the story:
-- batch workflow runs on a CSV lead list
+- deterministic demo batch rebuilds from `examples/demo/index.json`
+- the batch artifact still mirrors the same ready / review_required / blocked operator story
 - ready-only export gives downstream ops a clean handoff
 
 ### 5) Inspect the example artifacts directly
@@ -228,6 +229,16 @@ The local review UI can now run the same flow directly from a CSV upload:
 - optionally allow draft generation for `review_required` dossiers after human review
 - export the current batch's ready-only leads as downloadable JSON or CSV
 
+For the reproducible presenter path, rebuild the bundled demo batch instead of hitting live enrichment:
+
+```bash
+python3 ui/review_server.py \
+  --build-demo-batch-only \
+  --demo-batch-file examples/demo-output.json
+```
+
+This uses `examples/demo/index.json` and the curated demo dossiers/drafts, so the summary stays stable for demos and deploy smoke checks.
+
 ### Export ready-only leads for operations
 
 Once you have a batch artifact, export only the leads that are actually ready:
@@ -258,6 +269,7 @@ python3 ui/review_server.py --seed-demo --review-file examples/demo-review.json
 
 Notes:
 - this is a local-only UI served on `127.0.0.1` by default
+- `make batch-demo` is intentionally deterministic and rebuilds `examples/demo-output.json` from curated demo fixtures, not from live web enrichment
 - there is no auth because v1 is intentionally single-operator/local
 - demo seeding currently uses the ready-path DeepL example, not the review-required Mistral example
 

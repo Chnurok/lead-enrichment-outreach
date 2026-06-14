@@ -86,7 +86,7 @@ workflow-demo:
 	@$(PYTHON) skill/scripts/workflow.py --dossier-json examples/demo/ready/deepl-dossier.json --offer "$(DEMO_OFFER)"
 
 batch-demo:
-	@$(PYTHON) skill/scripts/batch_workflow_csv.py examples/demo-leads.csv --offer "$(DEMO_OFFER)"
+	@$(PYTHON) ui/review_server.py --build-demo-batch-only --demo-batch-file examples/demo-output.json --demo-offer "$(DEMO_OFFER)"
 
 ready-export-demo:
 	@$(PYTHON) skill/scripts/export_ready_leads.py examples/demo-output.json
