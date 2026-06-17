@@ -47,10 +47,11 @@ http://YOUR_HOST:8095/healthz
 
 ## Minimal presenter flow
 
-1. Open `/` and show the preloaded queue.
-2. Open one `ready` lead and show the draft/edit/decision surface.
-3. Show the coverage dashboard and approved export path.
-4. If needed, open `/healthz` to prove the demo batch is live and loaded.
+1. Open `/` and click `Start 90-second demo`.
+2. Show the `ready` lead first and explain why drafting is allowed.
+3. Jump to `review_required` and `blocked` to prove the safety rail.
+4. Return to the ready path and show the approved export / handoff flow.
+5. If needed, open `/healthz` to prove the demo batch is live and loaded.
 
 ## Notes
 

@@ -36,8 +36,13 @@ class GenerateOutreachTests(unittest.TestCase):
         dossier = {"company": "Acme", "summary": "Hi there. We sell tools."}
         out = mod.draft(dossier, "AI-assisted outreach workflows", "Would Tuesday work?")
         self.assertEqual(out["subject"], "Idea for Acme's outreach flow")
-        self.assertIn("I noticed i reviewed Acme's public company information.", out["body"])
+        self.assertIn("I noticed I reviewed Acme's public company information.", out["body"])
         self.assertNotIn("Hi there", out["body"])
+
+    def test_draft_preserves_company_casing_in_opening_line(self):
+        dossier = {"company": "DeepL", "summary": "DeepL builds translation APIs.", "emails": ["hi@deepl.com"]}
+        out = mod.draft(dossier, "AI-assisted outreach workflows", "Would Tuesday work?")
+        self.assertIn("I noticed DeepL builds translation APIs.", out["body"])
 
     def test_clean_clue_trims_noise_and_length(self):
         noisy = "  Acme builds freight software   across Europe. Second sentence here."

@@ -34,13 +34,15 @@ Say:
 - `review_required` means the company may be real, but contact evidence is weak
 - `blocked` means the workflow stops before outreach
 
-### 3. Open the operator UI
+### 3. Open the browser demo
 
 ```bash
 make demo-ui
 ```
 
 Open `http://127.0.0.1:8095` and point at:
+- the demo hero and `Start 90-second demo` button
+- the scenario jumps for `ready`, `review_required`, and `blocked`
 - dossier summary and source-backed evidence
 - trust verdict and warnings
 - ranked contacts
@@ -48,6 +50,13 @@ Open `http://127.0.0.1:8095` and point at:
 - explicit operator decision controls
 
 The demo review file and demo batch are already loaded, so you can start in the queue immediately.
+
+Recommended click path:
+1. `Start 90-second demo`
+2. show the ready lead and explain why it is safe to draft
+3. jump to `review_required` and explain the human gate
+4. jump to `blocked` and explain the refusal path
+5. return to export and show approved handoff
 
 ### 4. Close with batch handoff
 

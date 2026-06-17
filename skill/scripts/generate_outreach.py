@@ -54,8 +54,7 @@ def clean_clue(summary, company):
 def first_sentence(text):
     if not text:
         return ""
-    line = text.split("\n", 1)[0].strip()
-    return line[0].lower() + line[1:] if len(line) > 1 else line.lower()
+    return text.split("\n", 1)[0].strip()
 
 
 def dossier_is_ready(dossier):

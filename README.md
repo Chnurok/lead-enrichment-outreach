@@ -2,11 +2,17 @@
 
 ![Preview](assets/preview.svg)
 
+Canonical working root for this product:
+
+`/home/clawd/.openclaw/workspace/github/repos/lead-enrichment-outreach`
+
 Reviewable AI-assisted B2B outreach workflow:
 
 **company/domain → dossier → trust review → draft → human decision**
 
 This repo now includes the local review UI/HTTP layer inside the main product. No auth, no real sending, fail-closed by default.
+
+Older sibling projects such as `b2b-outreach-editor` and `startup-ai-outreach-copilot` are archived and should not be treated as the primary codebase.
 
 ## Demo first
 
@@ -79,7 +85,7 @@ This prints all 3 trust outcomes:
 - `review_required` -> plausible lead, but human review required
 - `blocked` -> not trustworthy enough to continue
 
-### 3) Open the operator UI
+### 3) Open the browser demo
 
 ```bash
 make demo-ui
@@ -92,11 +98,14 @@ http://127.0.0.1:8095
 ```
 
 What you should see:
+- a demo-first hero with a 90-second walkthrough path
+- one-click scenario jumps for `ready`, `review_required`, and `blocked`
 - a company dossier with source-backed summary
 - trust verdict and reasons
 - ranked contact candidates
 - editable outreach draft
 - explicit human decision controls (`approved` / `rejected` / `needs_review`)
+- a presenter guide that explains why the current lead is safe, gated, or blocked
 - batch tools:
   - load demo batch JSON
   - upload batch JSON artifact
@@ -113,6 +122,12 @@ What you should see:
   - import the approved-only final bundle back into the UI
 
 This seeds `examples/demo-review.json`, rebuilds `examples/demo-output.json`, and opens the local review workflow with the demo batch ready to inspect.
+
+Recommended browser order:
+- click `Start 90-second demo`
+- show the `ready` lead first
+- jump to `review_required` and `blocked` to prove the safety rail
+- return to the ready lead and export the approved handoff bundle
 
 ### 4) Show batch handoff
 

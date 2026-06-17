@@ -43,9 +43,18 @@ Open `http://127.0.0.1:8095`.
 
 Say:
 
-`This is the operator surface. It shows the dossier, the trust verdict, the ranked contact paths, the draft, and the explicit approve/reject/needs_review decision.`
+`This is the live browser demo. It does not just describe the product: it walks through the trust gate, the operator review step, and the approved handoff path.`
 
-The batch queue is already preloaded, so you can jump straight into a ready lead and then show the export path without extra setup.
+Then click in this order:
+1. `Start 90-second demo`
+2. `Ready scenario`
+3. `Review-required scenario`
+4. `Blocked scenario`
+5. back to the ready lead and the approved export path
+
+Say:
+
+`The ready path proves the product works. The review-required and blocked paths prove it is trustworthy. The approved export proves only reviewed leads reach downstream ops.`
 
 ### Step 4
 

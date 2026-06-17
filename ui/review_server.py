@@ -47,6 +47,30 @@ class ApiError(Exception):
         self.message = message
 
 
+def configured_saved_reviews_dir() -> Path:
+    raw = os.getenv("SAVED_REVIEWS_DIR")
+    if raw and raw.strip():
+        return Path(raw).expanduser().resolve()
+    return ROOT / "examples" / "saved-reviews"
+
+
+def can_write_to_dir(path: Path) -> bool:
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return False
+    return os.access(path, os.W_OK | os.X_OK)
+
+
+def saved_reviews_dir() -> Path:
+    preferred = configured_saved_reviews_dir()
+    if can_write_to_dir(preferred):
+        return preferred
+    fallback = ROOT / ".local-state" / "saved-reviews"
+    fallback.mkdir(parents=True, exist_ok=True)
+    return fallback
+
+
 class ReviewStore:
     def __init__(self, path: Path):
         self.path = path
@@ -77,12 +101,11 @@ def slugify(value: str) -> str:
 def build_saved_review_path(review_payload: dict) -> Path:
     lead = review_payload.get("lead") or {}
     company = slugify(lead.get("company") or "lead")
-    return ROOT / "examples" / "saved-reviews" / f"{company}-review.json"
+    return saved_reviews_dir() / f"{company}-review.json"
 
 
 def list_saved_reviews():
-    base = ROOT / "examples" / "saved-reviews"
-    base.mkdir(parents=True, exist_ok=True)
+    base = saved_reviews_dir()
     items = []
     for path in sorted(base.glob("*.json")):
         try:
@@ -106,7 +129,7 @@ def load_saved_review(filename: str):
         raise ApiError(400, "filename must be a non-empty string")
     if "/" in filename or "\\" in filename or not filename.endswith(".json"):
         raise ApiError(400, "invalid saved review filename")
-    path = ROOT / "examples" / "saved-reviews" / filename
+    path = saved_reviews_dir() / filename
     return ReviewStore(path).load()
 
 
@@ -571,6 +594,7 @@ class Handler(BaseHTTPRequestHandler):
             "demo_batch_file": str(demo_batch_path),
             "demo_batch_exists": batch_exists,
             "demo_batch_summary": batch_summary,
+            "saved_reviews_dir": str(saved_reviews_dir()),
             "saved_reviews_count": len(list_saved_reviews()),
         }
 

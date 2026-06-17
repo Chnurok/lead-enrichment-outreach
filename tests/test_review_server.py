@@ -6,6 +6,7 @@ import unittest
 import urllib.error
 import urllib.request
 from pathlib import Path
+from unittest import mock
 
 from ui.review_server import ApiError, ReviewStore, approve_ready_saved_reviews, bootstrap_demo_artifacts, build_approved_bundle, build_approved_bundle_zip_base64, build_approved_export, build_demo_batch, build_demo_review, build_handoff_bundle, build_handoff_bundle_zip_base64, build_saved_review_path, export_ready_batch, export_ready_batch_csv_text, generate_missing_ready_drafts, list_saved_reviews, load_approved_bundle_zip_base64, load_handoff_bundle_zip_base64, load_saved_review, run_batch_from_csv_text, save_review_payloads, validate_review_payload, ThreadedHTTPServer, Handler
 
@@ -145,7 +146,25 @@ class ReviewServerTests(unittest.TestCase):
     def test_build_saved_review_path_uses_company_slug(self):
         payload = self.sample_payload()
         path = build_saved_review_path(payload)
-        self.assertTrue(str(path).endswith("examples/saved-reviews/acme-review.json"))
+        self.assertTrue(str(path).endswith("saved-reviews/acme-review.json"))
+
+    def test_build_saved_review_path_falls_back_when_default_dir_not_writable(self):
+        import ui.review_server as review_server
+
+        payload = self.sample_payload()
+        with tempfile.TemporaryDirectory() as tmp:
+            original_root = review_server.ROOT
+            try:
+                review_server.ROOT = Path(tmp)
+                preferred = review_server.ROOT / "examples" / "saved-reviews"
+                fallback = review_server.ROOT / ".local-state" / "saved-reviews"
+                with mock.patch("ui.review_server.configured_saved_reviews_dir", return_value=preferred):
+                    with mock.patch("ui.review_server.can_write_to_dir", side_effect=lambda path: path == fallback):
+                        path = build_saved_review_path(payload)
+            finally:
+                review_server.ROOT = original_root
+
+        self.assertEqual(path, fallback / "acme-review.json")
 
     def test_run_batch_from_csv_text_builds_batch_artifact(self):
         import ui.review_server as review_server
@@ -520,6 +539,7 @@ class ReviewServerTests(unittest.TestCase):
                 self.assertEqual(health["demo_batch_file"], str(demo_batch_path))
                 self.assertTrue(health["demo_batch_exists"])
                 self.assertEqual(health["demo_batch_summary"]["ready"], 1)
+                self.assertTrue(str(health["saved_reviews_dir"]).endswith("saved-reviews"))
 
                 with urllib.request.urlopen(f"{base}/api/review") as resp:
                     review = json.loads(resp.read().decode("utf-8"))
@@ -600,6 +620,29 @@ class ReviewServerTests(unittest.TestCase):
                     demo_batch_path.unlink(missing_ok=True)
                 else:
                     demo_batch_path.write_text(original, encoding="utf-8")
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+    def test_http_serves_demo_first_ui_copy(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "review.json"
+            payload = self.sample_payload()
+            ReviewStore(path).save(payload)
+
+            server = ThreadedHTTPServer(("127.0.0.1", 0), Handler)
+            server.store = ReviewStore(path)
+            server.html_path = Path(__file__).resolve().parents[1] / "ui" / "index.html"
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                base = f"http://127.0.0.1:{server.server_address[1]}"
+                with urllib.request.urlopen(f"{base}/") as resp:
+                    html = resp.read().decode("utf-8")
+                self.assertIn("Start 90-second demo", html)
+                self.assertIn("Ready scenario", html)
+                self.assertIn("Approved handoff", html)
+            finally:
                 server.shutdown()
                 server.server_close()
                 thread.join(timeout=2)
