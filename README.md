@@ -164,7 +164,11 @@ For reproducible local runs, pass a known domain (live search-only enrichment ca
 python3 skill/scripts/enrich_lead.py --company "DeepL" --domain deepl.com
 ```
 
-Output: a dossier JSON with summary, sources, candidate sites, contacts, confidence, warnings, and a review verdict.
+Output: a dossier JSON with:
+- `search_results` across multiple HTML search sources
+- `primary_site_url`, `site_candidates`, `alternative_candidates`, and `why_chosen`
+- summary, contact sources, addresses/region hints, confidence, warnings, and a review verdict
+- optional `browser_fallback` rendering when a site is JS-gated or the first static fetch fails
 
 ### Draft generation
 

@@ -2,21 +2,32 @@
 import argparse
 import html
 import json
+import os
 import re
+import shutil
 import ssl
+import subprocess
 import sys
+import time
 import urllib.parse
 import urllib.request
 from collections import OrderedDict
 from html.parser import HTMLParser
+from functools import lru_cache
 from urllib.parse import unquote
 
 UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123 Safari/537.36"
 SEARCH_URL = "https://html.duckduckgo.com/html/?q={query}"
+SEARCH_URL_DDG_LITE = "https://lite.duckduckgo.com/lite/?q={query}"
+SEARCH_URL_BING = "https://www.bing.com/search?q={query}"
 TIMEOUT = 12
+BROWSER_TIMEOUT = 20
 MAX_CONTACT_FETCH = 3
+FETCH_RETRIES = 2
+MAX_SEARCH_RESULTS_PER_SOURCE = 5
 EMAIL_RE = re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.I)
 PHONE_RE = re.compile(r"(?:\+?\d[\d\s().-]{7,}\d)")
+ADDRESS_RE = re.compile(r"\b\d{1,5}[\w\s,./-]{8,}(?:street|st\.|road|rd\.|avenue|ave\.|boulevard|blvd\.|platz|allee|lane|ln\.|drive|dr\.|floor|suite)\b", re.I)
 EMAIL_JUNK_PATTERNS = (
     "u003e",
     "u003c",
@@ -42,6 +53,18 @@ JUNK_SUMMARY_PATTERNS = (
     r"privacy policy[^.?!]*[.?!]?",
     r"all rights reserved[^.?!]*[.?!]?",
     r"sign in[^.?!]*[.?!]?",
+)
+JS_ONLY_PATTERNS = (
+    "enable javascript",
+    "javascript is disabled",
+    "please turn javascript on",
+    "requires javascript",
+)
+BROWSER_BINARIES = (
+    "chromium",
+    "chromium-browser",
+    "google-chrome",
+    "google-chrome-stable",
 )
 
 
@@ -131,10 +154,66 @@ def clean_text(text):
 
 
 def fetch(url):
-    req = urllib.request.Request(url, headers={"User-Agent": UA})
-    ctx = ssl.create_default_context()
-    with urllib.request.urlopen(req, timeout=TIMEOUT, context=ctx) as resp:
-        return resp.read(350000).decode("utf-8", errors="replace")
+    last_error = None
+    for attempt in range(FETCH_RETRIES + 1):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": UA})
+            ctx = ssl.create_default_context()
+            with urllib.request.urlopen(req, timeout=TIMEOUT, context=ctx) as resp:
+                return resp.read(350000).decode("utf-8", errors="replace")
+        except Exception as exc:
+            last_error = exc
+            if attempt >= FETCH_RETRIES:
+                raise
+            time.sleep(0.15 * (attempt + 1))
+    raise last_error
+
+
+@lru_cache(maxsize=256)
+def cached_fetch(url):
+    return fetch(url)
+
+
+def find_browser_binary():
+    configured = os.getenv("LEAD_ENRICH_BROWSER_BIN")
+    if configured:
+        return configured
+    for candidate in BROWSER_BINARIES:
+        resolved = shutil.which(candidate)
+        if resolved:
+            return resolved
+    return None
+
+
+def render_page_with_browser(url):
+    browser = find_browser_binary()
+    if not browser:
+        return None, "no headless browser binary available"
+    cmd = [
+        browser,
+        "--headless",
+        "--disable-gpu",
+        "--no-sandbox",
+        "--dump-dom",
+        url,
+    ]
+    try:
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=BROWSER_TIMEOUT,
+            check=False,
+        )
+    except Exception as exc:
+        return None, f"browser fallback failed: {exc}"
+    if proc.returncode != 0:
+        message = proc.stderr.strip() or proc.stdout.strip() or f"browser exited {proc.returncode}"
+        return None, f"browser fallback failed: {message[:200]}"
+    rendered = proc.stdout or ""
+    if not rendered.strip():
+        return None, "browser fallback returned empty DOM"
+    return rendered, None
 
 
 def build_queries(company, region=None, domain=None, mode="smart"):
@@ -153,14 +232,74 @@ def build_queries(company, region=None, domain=None, mode="smart"):
     ]
 
 
-def search_query(query):
-    body = fetch(SEARCH_URL.format(query=urllib.parse.quote(query)))
+def parse_duckduckgo_html_results(body):
     urls = re.findall(r'nofollow" class="[^\"]*result__a[^\"]*" href="(.*?)"', body)
     if not urls:
         urls = re.findall(r'<a rel="nofollow" class="result__url" href="(.*?)"', body)
+    titles = [clean_text(s)[:180] for s in re.findall(r'class="result__a"[^>]*>(.*?)</a>', body, flags=re.S)[:8]]
     snippets = [clean_text(s)[:240] for s in re.findall(r'class="result__snippet"[^>]*>(.*?)</a>', body, flags=re.S)[:8]]
-    normalized_urls = [unwrap_search_result_url(html.unescape(u)) for u in urls]
-    return normalized_urls, snippets
+    results = []
+    for idx, raw_url in enumerate(urls[:MAX_SEARCH_RESULTS_PER_SOURCE]):
+        results.append({
+            "source": "duckduckgo_html",
+            "rank": idx + 1,
+            "url": unwrap_search_result_url(html.unescape(raw_url)),
+            "title": titles[idx] if idx < len(titles) else None,
+            "snippet": snippets[idx] if idx < len(snippets) else None,
+        })
+    return results
+
+
+def parse_duckduckgo_lite_results(body):
+    matches = re.findall(r'<a rel="nofollow" href="(.*?)"[^>]*>(.*?)</a>', body, flags=re.S)
+    results = []
+    for idx, (raw_url, raw_title) in enumerate(matches[:MAX_SEARCH_RESULTS_PER_SOURCE]):
+        results.append({
+            "source": "duckduckgo_lite",
+            "rank": idx + 1,
+            "url": unwrap_search_result_url(html.unescape(raw_url)),
+            "title": clean_text(raw_title)[:180],
+            "snippet": None,
+        })
+    return results
+
+
+def parse_bing_results(body):
+    blocks = re.findall(r'<li class="b_algo"[\s\S]*?</li>', body, flags=re.S)
+    results = []
+    for idx, block in enumerate(blocks[:MAX_SEARCH_RESULTS_PER_SOURCE]):
+        href_match = re.search(r'<h2><a href="(.*?)"', block)
+        if not href_match:
+            continue
+        title_match = re.search(r'<h2><a [^>]*>(.*?)</a>', block, flags=re.S)
+        snippet_match = re.search(r'<p>(.*?)</p>', block, flags=re.S)
+        results.append({
+            "source": "bing_html",
+            "rank": idx + 1,
+            "url": html.unescape(href_match.group(1)),
+            "title": clean_text(title_match.group(1))[:180] if title_match else None,
+            "snippet": clean_text(snippet_match.group(1))[:240] if snippet_match else None,
+        })
+    return results
+
+
+def search_query(query):
+    encoded = urllib.parse.quote(query)
+    search_results = []
+    errors = []
+    for source_name, url_template, parser in (
+        ("duckduckgo_html", SEARCH_URL, parse_duckduckgo_html_results),
+        ("duckduckgo_lite", SEARCH_URL_DDG_LITE, parse_duckduckgo_lite_results),
+        ("bing_html", SEARCH_URL_BING, parse_bing_results),
+    ):
+        try:
+            body = cached_fetch(url_template.format(query=encoded))
+            parsed = parser(body)
+            if parsed:
+                search_results.extend(parsed)
+        except Exception as exc:
+            errors.append(f"{source_name}: {exc}")
+    return dedupe_records(search_results, ("source", "url")), errors
 
 
 def score_candidate(url, company, region=None, snippet=None):
@@ -198,6 +337,8 @@ def verify_site_identity(url, company, region=None):
         "score": 0.0,
         "title": None,
         "reason": None,
+        "matched_title_terms": [],
+        "matched_body_terms": [],
     }
     try:
         parsed, err = parse_page(url, dom)
@@ -213,50 +354,113 @@ def verify_site_identity(url, company, region=None):
     score = 0.0
     if any(word in dom for word in company_words):
         score += 1.5
-    score += min(2.0, sum(0.75 for word in company_words[:4] if word in title))
-    score += min(2.0, sum(0.5 for word in company_words[:4] if word in text[:800]))
+    matched_title_terms = [word for word in company_words[:4] if word in title]
+    matched_body_terms = [word for word in company_words[:4] if word in text[:800]]
+    score += min(2.0, sum(0.75 for _ in matched_title_terms))
+    score += min(2.0, sum(0.5 for _ in matched_body_terms))
     if region and region.lower() in text[:800]:
         score += 0.5
     result["score"] = round(score, 2)
     result["verified"] = score >= 2.0
+    result["matched_title_terms"] = matched_title_terms
+    result["matched_body_terms"] = matched_body_terms
     if not result["verified"]:
         result["reason"] = "weak company match on candidate site"
     return result
 
 
-def choose_site(company, region, explicit_domain, query_results):
+def choose_site(company, region, explicit_domain, search_results):
     warnings = []
     if explicit_domain:
         clean = explicit_domain.lower().removeprefix("www.")
-        return f"https://{clean}", clean, warnings, query_results[0][1] if query_results else [], None
+        return {
+            "primary_site_url": f"https://{clean}",
+            "primary_domain": clean,
+            "why_chosen": "Explicit domain provided by input",
+            "warnings": warnings,
+            "site_verification": None,
+            "search_snippets": [item.get("snippet") for item in search_results if item.get("snippet")][:5],
+            "site_candidates": [],
+            "alternative_candidates": [],
+        }
 
     seen = []
-    snippets = []
-    for urls, snips in query_results:
-        snippets.extend(snips)
-        for idx, url in enumerate(urls):
-            snippet = snips[idx] if idx < len(snips) else ""
-            seen.append((score_candidate(url, company, region, snippet), url, snippet))
+    snippets = [item.get("snippet") for item in search_results if item.get("snippet")]
+    for item in search_results:
+        url = item.get("url")
+        snippet = item.get("snippet") or ""
+        title = item.get("title") or ""
+        seen.append((score_candidate(url, company, region, f"{title} {snippet}".strip()), item))
     seen.sort(key=lambda item: item[0], reverse=True)
     if not seen or seen[0][0] < 0:
         warnings.append("No strong official website match found")
-        return None, None, warnings, snippets[:5], None
+        return {
+            "primary_site_url": None,
+            "primary_domain": None,
+            "why_chosen": None,
+            "warnings": warnings,
+            "site_verification": None,
+            "search_snippets": snippets[:5],
+            "site_candidates": [],
+            "alternative_candidates": [],
+        }
 
-    top_candidates = seen[:2]
+    top_candidates = seen[:5]
     verified = []
-    for score, url, snippet in top_candidates:
+    for base_score, item in top_candidates:
+        url = item["url"]
         verification = verify_site_identity(url, company, region)
-        verified.append((score + verification["score"], url, snippet, verification))
-    verified.sort(key=lambda item: item[0], reverse=True)
-    chosen_score, chosen, _, verification = verified[0]
+        combined_score = base_score + verification["score"]
+        verified.append({
+            "url": url,
+            "domain": domain_of(url),
+            "source": item.get("source"),
+            "rank": item.get("rank"),
+            "title": verification.get("title") or item.get("title"),
+            "snippet": item.get("snippet"),
+            "base_score": round(base_score, 2),
+            "verification_score": round(verification.get("score", 0.0), 2),
+            "combined_score": round(combined_score, 2),
+            "verified": bool(verification.get("verified")),
+            "reason": verification.get("reason"),
+        })
+    verified.sort(key=lambda item: item["combined_score"], reverse=True)
+    chosen = verified[0]
+    verification = {
+        "verified": chosen["verified"],
+        "score": chosen["verification_score"],
+        "title": chosen["title"],
+        "reason": chosen["reason"],
+    }
     if not verification["verified"]:
         warnings.append("Official website candidate could not be strongly verified")
-    if len(verified) > 1 and abs(verified[0][0] - verified[1][0]) < 1.0:
+    if len(verified) > 1 and abs(verified[0]["combined_score"] - verified[1]["combined_score"]) < 1.0:
         warnings.append("Official website match is ambiguous")
-    if chosen_score < 1.0:
+    if chosen["combined_score"] < 1.0:
         warnings.append("No strong official website match found")
-        return None, None, warnings, snippets[:5], verification
-    return chosen, domain_of(chosen), warnings, snippets[:5], verification
+        primary_site_url = None
+        primary_domain = None
+    else:
+        primary_site_url = chosen["url"]
+        primary_domain = chosen["domain"]
+    why_chosen_parts = [
+        f"best combined score {chosen['combined_score']}",
+        f"source {chosen.get('source') or 'unknown'} rank {chosen.get('rank') or 'n/a'}",
+    ]
+    if chosen.get("verified"):
+        why_chosen_parts.append("candidate site verified against company terms")
+    if chosen.get("snippet"):
+        why_chosen_parts.append(f"snippet: {chosen['snippet'][:120]}")
+    return {
+        "primary_site_url": primary_site_url,
+        "primary_domain": primary_domain,
+        "why_chosen": "; ".join(why_chosen_parts),
+        "warnings": warnings,
+        "site_verification": verification,
+        "search_snippets": snippets[:5],
+        "site_candidates": verified,
+        "alternative_candidates": verified[1:4],
+    }
 
 
 def normalize_phone(phone):
@@ -296,6 +500,8 @@ def plausible_phone(phone):
 def extract_json_ld_contacts(blocks, url):
     emails = []
     phones = []
+    org_names = []
+    addresses = []
     for block in blocks:
         try:
             data = json.loads(block)
@@ -321,7 +527,21 @@ def extract_json_ld_contacts(blocks, url):
                         phone = plausible_phone(entry.replace("tel:", ""))
                         if phone:
                             phones.append({"value": phone, "source_url": url, "source_type": "jsonld"})
-    return dedupe_records(emails, ("value",)), dedupe_records(phones, ("value",))
+            name = item.get("name")
+            if isinstance(name, str) and len(name.strip()) > 2:
+                org_names.append({"value": clean_text(name)[:180], "source_url": url, "source_type": "jsonld"})
+            address = item.get("address")
+            if isinstance(address, dict):
+                flat = " ".join(str(address.get(key) or "").strip() for key in ("streetAddress", "addressLocality", "addressRegion", "postalCode", "addressCountry"))
+                flat = clean_text(flat)
+                if flat:
+                    addresses.append({"value": flat[:220], "source_url": url, "source_type": "jsonld"})
+    return (
+        dedupe_records(emails, ("value",)),
+        dedupe_records(phones, ("value",)),
+        dedupe_records(org_names, ("value",)),
+        dedupe_records(addresses, ("value",)),
+    )
 
 
 def extract_mailto_tel_links(links, url):
@@ -349,11 +569,26 @@ def parse_page(url, base_domain):
         "phones": [],
         "contact_pages": [],
         "social_links": [],
+        "org_names": [],
+        "addresses": [],
+        "region_hints": [],
+        "render_mode": "static",
+        "parse_warnings": [],
     }
     try:
-        raw = fetch(url)
+        raw = cached_fetch(url)
     except Exception as e:
-        return result, f"fetch failed for {url}: {e}"
+        raw = None
+        fetch_error = f"fetch failed for {url}: {e}"
+    else:
+        fetch_error = None
+
+    if raw is None:
+        rendered, browser_error = render_page_with_browser(url)
+        if rendered is None:
+            return result, fetch_error or browser_error or f"fetch failed for {url}"
+        raw = rendered
+        result["render_mode"] = "browser_fallback"
 
     parser = LinkParser()
     try:
@@ -361,6 +596,21 @@ def parse_page(url, base_domain):
     except Exception:
         pass
     text = clean_text(raw)
+    if any(pattern in text.lower()[:1000] for pattern in JS_ONLY_PATTERNS):
+        rendered, browser_error = render_page_with_browser(url)
+        if rendered:
+            raw = rendered
+            parser = LinkParser()
+            try:
+                parser.feed(raw)
+            except Exception:
+                pass
+            text = clean_text(raw)
+            result["render_mode"] = "browser_fallback"
+        else:
+            result["render_mode"] = "js_gated"
+            if browser_error:
+                result["parse_warnings"].append(browser_error)
     result["title"] = clean_text(" ".join(parser.title))[:140] if parser.title else None
     result["summary_text"] = text[:2000]
     regex_emails = dedupe_records([
@@ -380,7 +630,7 @@ def parse_page(url, base_domain):
     for href in parser.links:
         full = urllib.parse.urljoin(url, html.unescape(href))
         links.append(full)
-    jsonld_emails, jsonld_phones = extract_json_ld_contacts(parser.json_ld_blocks, url)
+    jsonld_emails, jsonld_phones, jsonld_org_names, jsonld_addresses = extract_json_ld_contacts(parser.json_ld_blocks, url)
     mailto_emails, tel_phones = extract_mailto_tel_links(parser.links, url)
 
     result["emails"] = dedupe_records(jsonld_emails + mailto_emails + regex_emails, ("value",))[:10]
@@ -394,6 +644,19 @@ def parse_page(url, base_domain):
         {"value": link, "source_url": url, "source_type": "page"}
         for link in links if SOCIAL_RE.search(link)
     ], ("value",))[:10]
+    result["org_names"] = jsonld_org_names[:5]
+    regex_addresses = dedupe_records([
+        {"value": clean_text(match)[:220], "source_url": url, "source_type": "page"}
+        for match in ADDRESS_RE.findall(text)
+        if clean_text(match)
+    ], ("value",))
+    result["addresses"] = dedupe_records(jsonld_addresses + regex_addresses, ("value",))[:5]
+    region_hints = []
+    for candidate in result["addresses"]:
+        parts = [part.strip() for part in re.split(r"[,/|-]", candidate["value"]) if len(part.strip()) > 2]
+        for part in parts[:4]:
+            region_hints.append({"value": part[:120], "source_url": candidate["source_url"], "source_type": candidate["source_type"]})
+    result["region_hints"] = dedupe_records(region_hints, ("value",))[:5]
     return result, None
 
 
@@ -501,34 +764,6 @@ def build_contact_review(ranked_contacts):
     return review
 
 
-def build_site_candidates(company, region, query_results):
-    candidates = []
-    seen = OrderedDict()
-    for urls, snips in query_results:
-        for idx, url in enumerate(urls):
-            dom = domain_of(url)
-            if not dom or dom in seen:
-                continue
-            snippet = snips[idx] if idx < len(snips) else ""
-            base_score = score_candidate(url, company, region, snippet)
-            seen[dom] = (url, snippet, base_score)
-    for dom, (url, snippet, base_score) in list(seen.items())[:5]:
-        verification = verify_site_identity(url, company, region)
-        candidates.append({
-            "url": url,
-            "domain": dom,
-            "base_score": round(base_score, 2),
-            "verification_score": round(verification.get("score", 0.0), 2),
-            "combined_score": round(base_score + verification.get("score", 0.0), 2),
-            "verified": bool(verification.get("verified")),
-            "title": verification.get("title"),
-            "reason": verification.get("reason"),
-            "snippet": snippet[:180] if snippet else None,
-        })
-    candidates.sort(key=lambda item: item["combined_score"], reverse=True)
-    return candidates
-
-
 def cleanup_summary_text(text):
     cleaned = text or ""
     for pattern in JUNK_SUMMARY_PATTERNS:
@@ -573,6 +808,8 @@ def build_trust_signals(domain, emails, phones, summary, warnings, best_contact_
         "warning_penalty": warning_penalty,
         "site_verified": bool(site_verification and site_verification.get("verified")),
         "site_verification_score": round((site_verification or {}).get("score", 0.0), 2),
+        "has_official_contact_page": False,
+        "js_gated_site": False,
         "best_contact": {
             "present": bool(best_contact_meta),
             "official": bool(best_contact_meta and best_contact_meta.get("official")),
@@ -652,18 +889,23 @@ def build_review_result(result, ranked_contacts):
 
 def enrich(company, region=None, domain=None, query_mode="smart"):
     queries = build_queries(company, region, domain, query_mode)
-    query_results = []
+    search_results = []
     warnings = []
     for query in queries:
         try:
-            urls, snippets = search_query(query)
-            query_results.append((urls, snippets))
+            query_items, search_errors = search_query(query)
+            search_results.extend([{**item, "query": query} for item in query_items])
+            warnings.extend([f"search source failed for '{query}': {message}" for message in search_errors])
         except Exception as e:
             warnings.append(f"search failed for '{query}': {e}")
     query_str = queries[0] if queries else company
-    site_url, primary_domain, choose_warnings, snippets, site_verification = choose_site(company, region, domain, query_results)
-    warnings.extend(choose_warnings)
-    site_candidates = [] if domain else build_site_candidates(company, region, query_results)
+    chosen_site = choose_site(company, region, domain, search_results)
+    warnings.extend(chosen_site["warnings"])
+    site_url = chosen_site["primary_site_url"]
+    primary_domain = chosen_site["primary_domain"]
+    snippets = chosen_site["search_snippets"]
+    site_verification = chosen_site["site_verification"]
+    site_candidates = chosen_site["site_candidates"]
 
     website_title = None
     summary_record = None
@@ -671,6 +913,10 @@ def enrich(company, region=None, domain=None, query_mode="smart"):
     phones = []
     contact_pages = []
     social_links = []
+    addresses = []
+    region_hints = []
+    organization_names = []
+    render_mode = "static"
 
     if site_url:
         parsed, err = parse_page(site_url, primary_domain or "")
@@ -682,6 +928,11 @@ def enrich(company, region=None, domain=None, query_mode="smart"):
         phones.extend(parsed["phones"])
         contact_pages.extend(parsed["contact_pages"])
         social_links.extend(parsed["social_links"])
+        addresses.extend(parsed.get("addresses") or [])
+        region_hints.extend(parsed.get("region_hints") or [])
+        organization_names.extend(parsed.get("org_names") or [])
+        render_mode = parsed.get("render_mode") or render_mode
+        warnings.extend(parsed.get("parse_warnings") or [])
 
         for extra_url in [r["value"] for r in dedupe_records(contact_pages, ("value",))[:MAX_CONTACT_FETCH]]:
             extra, err = parse_page(extra_url, primary_domain or "")
@@ -691,6 +942,10 @@ def enrich(company, region=None, domain=None, query_mode="smart"):
             emails.extend(extra["emails"])
             phones.extend(extra["phones"])
             social_links.extend(extra["social_links"])
+            addresses.extend(extra.get("addresses") or [])
+            region_hints.extend(extra.get("region_hints") or [])
+            organization_names.extend(extra.get("org_names") or [])
+            warnings.extend(extra.get("parse_warnings") or [])
             if not summary_record:
                 summary_record = summarize(extra["summary_text"], snippets, extra_url)
     else:
@@ -713,7 +968,11 @@ def enrich(company, region=None, domain=None, query_mode="smart"):
         "company": company,
         "region": region,
         "query": query_str,
+        "search_results": search_results[:15],
         "primary_domain": primary_domain,
+        "primary_site_url": site_url,
+        "alternative_candidates": chosen_site["alternative_candidates"],
+        "why_chosen": chosen_site["why_chosen"],
         "website_title": website_title,
         "site_verification": site_verification,
         "site_candidates": site_candidates,
@@ -733,6 +992,13 @@ def enrich(company, region=None, domain=None, query_mode="smart"):
         "phone_sources": {phone: phone_sources[phone] for phone in phone_values if phone in phone_sources},
         "contact_pages": contact_page_values,
         "social_links": social_values,
+        "addresses": [record["value"] for record in dedupe_records(addresses, ("value",))[:5]],
+        "region_hints": [record["value"] for record in dedupe_records(region_hints, ("value",))[:5]],
+        "organization_names": [record["value"] for record in dedupe_records(organization_names, ("value",))[:5]],
+        "extraction": {
+            "render_mode": render_mode,
+            "search_sources": dedupe([item.get("source") for item in search_results if item.get("source")]),
+        },
         "snippets": snippets[:5],
         "confidence": 0.0,
         "trust_signals": {},
@@ -748,7 +1014,10 @@ def enrich(company, region=None, domain=None, query_mode="smart"):
         best_contact_meta,
         site_verification,
     )
+    result["trust_signals"]["has_official_contact_page"] = any(domain_of(url) == (primary_domain or "") for url in result["contact_pages"])
+    result["trust_signals"]["js_gated_site"] = render_mode == "js_gated"
     result["review"] = build_review_result(result, ranked_contacts)
+    result["review_reason"] = "; ".join(result["review"]["reasons"]) if result["review"]["reasons"] else "No blocking trust concerns detected"
     return result
 
 

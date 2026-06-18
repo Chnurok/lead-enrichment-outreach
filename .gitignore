@@ -7,6 +7,9 @@ __pycache__/
 .venv/
 .env
 .DS_Store
+.local-state/
+.supergoal/
+examples/saved-reviews/
 
 dist/
 *.egg-info/

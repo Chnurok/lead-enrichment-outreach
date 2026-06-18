@@ -977,7 +977,9 @@
       if (!state) return;
       const dossier = state.dossier;
       const decision = state.review_decision;
-      document.getElementById('leadMeta').textContent = `${state.lead.company} · ${state.lead.domain || (currentLang === 'ru' ? 'без домена' : 'no domain')} · ${currentLang === 'ru' ? 'оффер' : 'offer'}: ${state.lead.offer || 'n/a'}`;
+      const extraction = dossier.extraction || {};
+      const searchSources = (extraction.search_sources || []).join(', ') || (currentLang === 'ru' ? 'нет' : 'none');
+      document.getElementById('leadMeta').textContent = `${state.lead.company} · ${state.lead.domain || dossier.primary_domain || (currentLang === 'ru' ? 'без домена' : 'no domain')} · ${currentLang === 'ru' ? 'оффер' : 'offer'}: ${state.lead.offer || 'n/a'} · ${currentLang === 'ru' ? 'поиск' : 'search'}: ${searchSources}`;
       document.getElementById('leadChips').innerHTML = [
         `${currentLang === 'ru' ? 'Статус review' : 'Review'}: ${prettyStatus(dossier.review.status)}`,
         `${currentLang === 'ru' ? 'Уверенность' : 'Confidence'}: ${dossier.confidence ?? 'n/a'}`,
@@ -998,7 +1000,10 @@
       `).join('');
       document.getElementById('summaryText').textContent = dossier.summary || (currentLang === 'ru' ? 'Нет summary' : 'No summary available');
       document.getElementById('summarySource').textContent = sourceLabel(dossier.summary_source);
-      renderList('warningsList', [...(dossier.warnings || []), ...(dossier.review.reasons || [])], currentLang === 'ru' ? 'Без предупреждений' : 'No warnings');
+      const whyChosen = dossier.why_chosen ? [`${currentLang === 'ru' ? 'Почему выбран сайт' : 'Why this site was chosen'}: ${dossier.why_chosen}`] : [];
+      const reviewReason = dossier.review_reason ? [`${currentLang === 'ru' ? 'Итог review' : 'Review outcome'}: ${dossier.review_reason}`] : [];
+      const addressNotes = (dossier.addresses || []).length ? [`${currentLang === 'ru' ? 'Адреса/локейшн' : 'Address/location'}: ${(dossier.addresses || []).join(' | ')}`] : [];
+      renderList('warningsList', [...whyChosen, ...reviewReason, ...addressNotes, ...(dossier.warnings || []), ...(dossier.review.reasons || [])], currentLang === 'ru' ? 'Без предупреждений' : 'No warnings');
       document.getElementById('nextStep').textContent = dossier.review.next_step || 'n/a';
 
       document.getElementById('contacts').innerHTML = (dossier.review.top_contact_candidates || []).map(contact => `
@@ -1012,7 +1017,8 @@
       document.getElementById('siteCandidates').innerHTML = (dossier.site_candidates || []).map(site => `
         <div class="contact">
           <strong><a href="${esc(site.url)}" target="_blank" rel="noreferrer">${esc(site.domain)}</a></strong>
-          <small>${currentLang === 'ru' ? 'суммарная оценка' : 'combined'} ${esc(site.combined_score)} · ${currentLang === 'ru' ? 'подтверждено' : 'verified'}=${esc(site.verified)} · ${esc(site.title || (currentLang === 'ru' ? 'без заголовка' : 'no title'))}</small><br />
+          <small>${currentLang === 'ru' ? 'суммарная оценка' : 'combined'} ${esc(site.combined_score)} · ${currentLang === 'ru' ? 'подтверждено' : 'verified'}=${esc(site.verified)} · ${currentLang === 'ru' ? 'источник' : 'source'} ${esc(site.source || 'n/a')} #${esc(site.rank || 'n/a')}</small><br />
+          <small>${esc(site.title || (currentLang === 'ru' ? 'без заголовка' : 'no title'))}</small><br />
           <small>${esc(site.snippet || site.reason || (currentLang === 'ru' ? 'без сниппета' : 'no snippet'))}</small>
         </div>
       `).join('') || `<div class="muted">${currentLang === 'ru' ? 'Нет кандидатов на сайт' : 'No candidate sites'}</div>`;

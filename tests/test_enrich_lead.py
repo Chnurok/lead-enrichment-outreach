@@ -32,21 +32,21 @@ class EnrichLeadTests(unittest.TestCase):
         self.assertIn("official site email", qs[0])
 
     def test_choose_site_prefers_company_domain(self):
-        results = [([
-            "https://facebook.com/acme",
-            "https://acme-logistics.de/contact",
-            "https://directory.example/acme"
-        ], ["snippet"])]
+        results = [
+            {"url": "https://facebook.com/acme", "snippet": "facebook page", "source": "duckduckgo_html", "rank": 1},
+            {"url": "https://acme-logistics.de/contact", "snippet": "Acme Logistics official contact", "source": "bing_html", "rank": 1},
+            {"url": "https://directory.example/acme", "snippet": "directory", "source": "duckduckgo_lite", "rank": 2},
+        ]
         original_verify = mod.verify_site_identity
         mod.verify_site_identity = lambda url, company, region=None: {"verified": True, "score": 2.5, "title": "Acme Logistics", "reason": None}
         try:
-            chosen, domain, warnings, snippets, verification = mod.choose_site("Acme Logistics", "Berlin", None, results)
+            chosen = mod.choose_site("Acme Logistics", "Berlin", None, results)
         finally:
             mod.verify_site_identity = original_verify
-        self.assertEqual(domain, "acme-logistics.de")
-        self.assertEqual(warnings, [])
-        self.assertEqual(snippets, ["snippet"])
-        self.assertTrue(verification["verified"])
+        self.assertEqual(chosen["primary_domain"], "acme-logistics.de")
+        self.assertEqual(chosen["warnings"], [])
+        self.assertTrue(chosen["site_verification"]["verified"])
+        self.assertIn("best combined score", chosen["why_chosen"])
 
     def test_choose_best_contacts_prefers_official_non_weak_email(self):
         emails, best, meta, best_record, _ = mod.choose_best_contacts([
@@ -95,7 +95,13 @@ class EnrichLeadTests(unittest.TestCase):
         original_verify_site_identity = mod.verify_site_identity
         try:
             mod.build_queries = lambda company, region=None, domain=None, mode="smart": ["Acme"]
-            mod.search_query = lambda query: (["https://acme.com"], ["Acme makes tools for field teams."])
+            mod.search_query = lambda query: ([{
+                "url": "https://acme.com",
+                "title": "Acme",
+                "snippet": "Acme makes tools for field teams.",
+                "source": "duckduckgo_html",
+                "rank": 1,
+            }], [])
             mod.verify_site_identity = lambda url, company, region=None: {"verified": True, "score": 2.5, "title": "Acme", "reason": None}
 
             def fake_parse_page(url, base_domain):
@@ -134,10 +140,10 @@ class EnrichLeadTests(unittest.TestCase):
         self.assertEqual(out["source_type"], "serp")
 
     def test_choose_site_warns_on_ambiguous_match(self):
-        results = [([
-            "https://acme-tools.com",
-            "https://acme-group.com"
-        ], ["Acme tools official site", "Acme group software company"])]
+        results = [
+            {"url": "https://acme-tools.com", "snippet": "Acme tools official site", "source": "duckduckgo_html", "rank": 1},
+            {"url": "https://acme-group.com", "snippet": "Acme group software company", "source": "bing_html", "rank": 1},
+        ]
         original_verify = mod.verify_site_identity
         try:
             scores = {
@@ -145,17 +151,17 @@ class EnrichLeadTests(unittest.TestCase):
                 "https://acme-group.com": {"verified": True, "score": 2.1, "title": "Acme Group", "reason": None},
             }
             mod.verify_site_identity = lambda url, company, region=None: scores[url]
-            chosen, domain, warnings, snippets, verification = mod.choose_site("Acme", None, None, results)
+            chosen = mod.choose_site("Acme", None, None, results)
         finally:
             mod.verify_site_identity = original_verify
-        self.assertEqual(domain, "acme-group.com")
-        self.assertIn("Official website match is ambiguous", warnings)
-        self.assertTrue(verification["verified"])
+        self.assertEqual(chosen["primary_domain"], "acme-group.com")
+        self.assertIn("Official website match is ambiguous", chosen["warnings"])
+        self.assertTrue(chosen["site_verification"]["verified"])
 
     def test_parse_page_extracts_mailto_tel_and_jsonld(self):
-        original_fetch = mod.fetch
+        original_fetch = mod.cached_fetch
         try:
-            mod.fetch = lambda url: '''
+            mod.cached_fetch = lambda url: '''
                 <html>
                   <head>
                     <title>Acme</title>
@@ -170,7 +176,7 @@ class EnrichLeadTests(unittest.TestCase):
             '''
             parsed, err = mod.parse_page("https://acme.com", "acme.com")
         finally:
-            mod.fetch = original_fetch
+            mod.cached_fetch = original_fetch
         self.assertIsNone(err)
         emails = [record["value"] for record in parsed["emails"]]
         phones = [record["value"] for record in parsed["phones"]]
@@ -188,7 +194,13 @@ class EnrichLeadTests(unittest.TestCase):
         original_verify_site_identity = mod.verify_site_identity
         try:
             mod.build_queries = lambda company, region=None, domain=None, mode="smart": ["Acme"]
-            mod.search_query = lambda query: (["https://acme.com"], ["Acme makes tools for field teams."])
+            mod.search_query = lambda query: ([{
+                "url": "https://acme.com",
+                "title": "Acme",
+                "snippet": "Acme makes tools for field teams.",
+                "source": "duckduckgo_html",
+                "rank": 1,
+            }], [])
             mod.verify_site_identity = lambda url, company, region=None: {"verified": True, "score": 2.5, "title": "Acme", "reason": None}
 
             def fake_parse_page(url, base_domain):
@@ -229,6 +241,74 @@ class EnrichLeadTests(unittest.TestCase):
         self.assertEqual(result["trust_signals"]["email_count"], 2)
         self.assertEqual(result["review"]["status"], "ready")
         self.assertGreaterEqual(len(result["site_candidates"]), 1)
+        self.assertEqual(result["primary_site_url"], "https://acme.com")
+        self.assertTrue(result["search_results"])
+        self.assertIn("duckduckgo_html", result["extraction"]["search_sources"])
+        self.assertIn("best combined score", result["why_chosen"])
+        self.assertEqual(result["review_reason"], "No blocking trust concerns detected")
+
+    def test_parse_page_extracts_addresses_and_region_hints(self):
+        original_fetch = mod.cached_fetch
+        try:
+            mod.cached_fetch = lambda url: """
+                <html>
+                  <head>
+                    <title>Acme Berlin</title>
+                    <script type=\"application/ld+json\">
+                      {"name":"Acme GmbH","address":{"streetAddress":"12 Alexanderplatz","addressLocality":"Berlin","addressCountry":"DE"}}
+                    </script>
+                  </head>
+                  <body>
+                    Visit us at 12 Alexanderplatz, Berlin, Germany
+                  </body>
+                </html>
+            """
+            parsed, err = mod.parse_page("https://acme.com", "acme.com")
+        finally:
+            mod.cached_fetch = original_fetch
+        self.assertIsNone(err)
+        self.assertIn("Acme GmbH", [item["value"] for item in parsed["org_names"]])
+        self.assertTrue(parsed["addresses"])
+        self.assertTrue(any("Berlin" in item["value"] for item in parsed["region_hints"]))
+
+    def test_parse_page_uses_browser_fallback_for_js_gated_page(self):
+        original_fetch = mod.cached_fetch
+        original_browser = mod.render_page_with_browser
+        try:
+            mod.cached_fetch = lambda url: "<html><body>Enable JavaScript to continue.</body></html>"
+            mod.render_page_with_browser = lambda url: ("""
+                <html>
+                  <head><title>Acme Rendered</title></head>
+                  <body>
+                    <a href=\"mailto:hello@acme.com\">Email</a>
+                    Acme builds logistics software for field teams.
+                  </body>
+                </html>
+            """, None)
+            parsed, err = mod.parse_page("https://acme.com", "acme.com")
+        finally:
+            mod.cached_fetch = original_fetch
+            mod.render_page_with_browser = original_browser
+        self.assertIsNone(err)
+        self.assertEqual(parsed["render_mode"], "browser_fallback")
+        self.assertEqual(parsed["title"], "Acme Rendered")
+        self.assertIn("hello@acme.com", [item["value"] for item in parsed["emails"]])
+
+    def test_parse_page_uses_browser_fallback_when_fetch_fails(self):
+        original_fetch = mod.cached_fetch
+        original_browser = mod.render_page_with_browser
+        try:
+            def boom(url):
+                raise RuntimeError("network down")
+            mod.cached_fetch = boom
+            mod.render_page_with_browser = lambda url: ("<html><head><title>Acme Browser</title></head><body>Acme browser render.</body></html>", None)
+            parsed, err = mod.parse_page("https://acme.com", "acme.com")
+        finally:
+            mod.cached_fetch = original_fetch
+            mod.render_page_with_browser = original_browser
+        self.assertIsNone(err)
+        self.assertEqual(parsed["render_mode"], "browser_fallback")
+        self.assertEqual(parsed["title"], "Acme Browser")
 
     def test_build_review_result_blocks_low_confidence_dossier(self):
         result = {
