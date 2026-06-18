@@ -257,6 +257,20 @@
       border: 1px solid rgba(21,93,75,0.12);
     }
     .hero-note strong { display: block; margin-bottom: 4px; }
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .compare-box {
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.72);
+      border: 1px solid rgba(0,0,0,0.06);
+    }
+    .compare-box strong { display: block; margin-bottom: 6px; }
+    .compare-box small { color: var(--muted); line-height: 1.45; display: block; }
     .mini-label {
       display: block;
       margin-bottom: 6px;
@@ -318,6 +332,7 @@
     @media (max-width: 920px) {
       .hero-grid,
       .header, .grid, .two-col { grid-template-columns: 1fr; }
+      .compare-grid { grid-template-columns: 1fr; }
       .page { padding: 16px; }
       .hero-title { max-width: none; font-size: 34px; }
       .trust-grid { grid-template-columns: 1fr; }
@@ -351,6 +366,16 @@
             <div class="proof-box"><strong>3</strong><small id="proofOne">Trust outcomes bundled for deterministic demos</small></div>
             <div class="proof-box"><strong>1-2 min</strong><small id="proofTwo">Time to understand promise and operator path</small></div>
             <div class="proof-box"><strong>Fail-closed</strong><small id="proofThree">No send path, no blind automation, no fake certainty</small></div>
+          </div>
+          <div class="compare-grid">
+            <div class="compare-box">
+              <strong id="autoTitle">What the system does automatically</strong>
+              <small id="autoCopy">Finds public evidence, builds a dossier, ranks contacts, and blocks weak leads before anyone sends outreach.</small>
+            </div>
+            <div class="compare-box">
+              <strong id="humanTitle">What still stays with a human</strong>
+              <small id="humanCopy">A person confirms the trust verdict, edits the draft, and decides what is actually approved for handoff.</small>
+            </div>
           </div>
         </div>
         <div class="hero-panel">
@@ -568,27 +593,31 @@
     const UI = {
       en: {
         pageTitle: 'Lead Enrichment Demo Console',
-        heroTitle: 'Lead enrichment that proves why a lead is safe to touch.',
-        heroCopy: 'This demo shows the full operator story in one place: lead evidence becomes a dossier, trust gating prevents reckless outreach, a human reviews the draft, and downstream ops get only approved handoff artifacts.',
-        startDemoBtn: 'Start 90-second demo',
+        heroTitle: 'A review panel for AI-assisted outreach, not blind automation.',
+        heroCopy: 'This demo shows how a raw lead turns into a source-backed dossier, how weak evidence gets stopped, and how a human approves only the leads that are safe to move downstream.',
+        startDemoBtn: 'Watch 60-second demo',
         openQueueBtn: 'Open queue',
         jumpDraftBtn: 'Jump to draft review',
-        readyScenarioBtn: 'Ready scenario',
-        reviewScenarioBtn: 'Review-required scenario',
-        blockedScenarioBtn: 'Blocked scenario',
+        readyScenarioBtn: 'Safe lead',
+        reviewScenarioBtn: 'Needs human review',
+        blockedScenarioBtn: 'Do not touch',
         approvedHandoffBtn: 'Approved handoff',
-        proofOne: 'Trust outcomes bundled for deterministic demos',
-        proofTwo: 'Time to understand promise and operator path',
+        proofOne: 'Three trust outcomes bundled into one deterministic demo',
+        proofTwo: '1-2 minutes to understand the operator path',
         proofThree: 'No send path, no blind automation, no fake certainty',
+        autoTitle: 'What the system does automatically',
+        autoCopy: 'Finds public evidence, builds a dossier, ranks contacts, and blocks weak leads before anyone sends outreach.',
+        humanTitle: 'What still stays with a human',
+        humanCopy: 'A person confirms the trust verdict, edits the draft, and decides what is actually approved for handoff.',
         demoRouteTitle: 'Demo route',
-        consoleTitle: 'Lead enrichment demo console',
-        consoleCopy: 'Inspect deterministic demo scenarios, explain the trust verdict, review the outreach draft, and hand off only approved leads.',
-        fastestTitle: 'Fastest browser walkthrough',
-        fastestCopy: 'Start with the ready lead to prove the golden path, switch to review-required and blocked to show the safety rail, then return to export only approved handoff assets.',
+        consoleTitle: 'Lead review demo console',
+        consoleCopy: 'Inspect deterministic demo scenarios, explain why a lead is safe or unsafe, review the draft, and hand off only approved leads.',
+        fastestTitle: 'Fastest walkthrough',
+        fastestCopy: 'Start with the safe lead, switch to the human-review and blocked cases to show the guardrail, then return and export only approved handoff assets.',
         flowOneTitle: '1. Evidence',
-        flowOneCopy: 'Lead becomes dossier',
+        flowOneCopy: 'Raw lead becomes dossier',
         flowTwoTitle: '2. Trust gate',
-        flowTwoCopy: 'Ready vs review vs blocked',
+        flowTwoCopy: 'Safe / human review / stop',
         flowThreeTitle: '3. Human review',
         flowThreeCopy: 'Draft and decision',
         flowFourTitle: '4. Handoff',
@@ -598,7 +627,7 @@
         allowReviewLabel: 'Allow review-required drafts',
         toolbarNote: 'Use the demo batch for the cleanest walkthrough. CSV run is best for live operator flow, while bundle imports restore a previously reviewed state.',
         demoGuideTitle: 'Demo guide',
-        demoGuideLead: 'Use this card as your presenter prompt and self-explanatory trust summary.',
+        demoGuideLead: 'Use this card to explain what happened automatically, why the trust verdict exists, and what a human still controls.',
         operatorDecisionTitle: 'Operator decision',
         batchQueueTitle: 'Batch queue',
         batchQueueLead: 'Start here to see what is ready to ship, what still needs review, and what is blocked.',
@@ -643,27 +672,31 @@
       },
       ru: {
         pageTitle: 'Демо Lead Enrichment',
-        heroTitle: 'Обогащение лидов, которое объясняет, почему с лидом безопасно работать.',
-        heroCopy: 'Это демо показывает весь операторский путь в одном месте: доказательства превращаются в досье, проверка доверия не даёт запускать рискованный outreach, человек проверяет черновик, а дальше в операционную команду уходят только одобренные артефакты.',
-        startDemoBtn: 'Запустить демо на 90 секунд',
+        heroTitle: 'Это review-панель для AI-assisted outreach, а не слепая автоматизация.',
+        heroCopy: 'Это демо показывает, как сырой лид превращается в source-backed досье, как слабые сигналы останавливаются trust-проверкой и как человек одобряет только те лиды, которые безопасно передавать дальше.',
+        startDemoBtn: 'Посмотреть демо за 60 секунд',
         openQueueBtn: 'Открыть очередь',
         jumpDraftBtn: 'Перейти к черновику',
-        readyScenarioBtn: 'Сценарий: готово',
-        reviewScenarioBtn: 'Сценарий: нужен review',
-        blockedScenarioBtn: 'Сценарий: блокировка',
+        readyScenarioBtn: 'Безопасный лид',
+        reviewScenarioBtn: 'Нужна ручная проверка',
+        blockedScenarioBtn: 'Лид не трогаем',
         approvedHandoffBtn: 'Одобренный handoff',
-        proofOne: 'Три сценария доверия уже включены в детерминированное демо',
+        proofOne: 'Три trust-сценария уже собраны в одно детерминированное демо',
         proofTwo: '1-2 минуты, чтобы понять ценность и путь оператора',
         proofThree: 'Никакой отправки, слепой автоматизации и фальшивой уверенности',
+        autoTitle: 'Что система делает автоматически',
+        autoCopy: 'Ищет публичные сигналы, собирает досье, ранжирует контакты и блокирует слабые лиды ещё до отправки outreach.',
+        humanTitle: 'Что всё ещё решает человек',
+        humanCopy: 'Человек подтверждает trust-verdict, правит черновик и решает, что реально можно одобрить для handoff.',
         demoRouteTitle: 'Маршрут демо',
-        consoleTitle: 'Демо-консоль обогащения лидов',
-        consoleCopy: 'Смотри детерминированные сценарии демо, объясняй verdict по доверию, проверяй черновик outreach и передавай дальше только одобренные лиды.',
+        consoleTitle: 'Демо-консоль review лида',
+        consoleCopy: 'Смотри демо-сценарии, объясняй, почему лид безопасен или небезопасен, проверяй черновик и передавай дальше только одобренные лиды.',
         fastestTitle: 'Самый быстрый показ',
-        fastestCopy: 'Начни с готового лида, чтобы показать чистый путь, потом переключись на сценарии с ручной проверкой и блокировкой, а в конце вернись к одобренному handoff.',
+        fastestCopy: 'Начни с безопасного лида, потом покажи сценарии с ручной проверкой и блокировкой, а в конце вернись и выгрузи только одобренный handoff.',
         flowOneTitle: '1. Доказательства',
-        flowOneCopy: 'Лид превращается в досье',
+        flowOneCopy: 'Сырой лид становится досье',
         flowTwoTitle: '2. Проверка доверия',
-        flowTwoCopy: 'Готово / review / блокировка',
+        flowTwoCopy: 'Можно готовить / проверить руками / стоп',
         flowThreeTitle: '3. Проверка человеком',
         flowThreeCopy: 'Черновик и решение',
         flowFourTitle: '4. Handoff',
@@ -673,7 +706,7 @@
         allowReviewLabel: 'Разрешить черновики для сценариев с review',
         toolbarNote: 'Для самой чистой презентации используй демо-пакет. CSV подходит для живого операторского сценария, а импорт bundle восстанавливает ранее сохранённое состояние.',
         demoGuideTitle: 'Гид по демо',
-        demoGuideLead: 'Эта карточка работает как подсказка презентеру и как самодостаточное объяснение trust-логики.',
+        demoGuideLead: 'Эта карточка помогает быстро объяснить, что система сделала автоматически, почему появился trust-verdict и что всё ещё остаётся под контролем человека.',
         operatorDecisionTitle: 'Решение оператора',
         batchQueueTitle: 'Очередь пакета',
         batchQueueLead: 'Здесь сразу видно, что уже готово к handoff, что требует ручной проверки и что заблокировано.',
@@ -725,17 +758,17 @@
     function prettyStatus(status) {
       const labels = currentLang === 'ru'
         ? {
-            ready: 'Готово',
-            review_required: 'Нужен review',
-            blocked: 'Заблокировано',
+            ready: 'Можно готовить черновик',
+            review_required: 'Нужна ручная проверка',
+            blocked: 'Лид не трогаем',
             approved: 'Одобрено',
             rejected: 'Отклонено',
-            needs_review: 'Нужен review'
+            needs_review: 'Нужна ручная проверка'
           }
         : {
-            ready: 'Ready',
-            review_required: 'Review required',
-            blocked: 'Blocked',
+            ready: 'Safe to draft',
+            review_required: 'Needs human review',
+            blocked: 'Do not touch',
             approved: 'Approved',
             rejected: 'Rejected',
             needs_review: 'Needs review'

@@ -2,6 +2,8 @@
 
 ![Preview](assets/preview.svg)
 
+Russian version: [README.ru.md](README.ru.md)
+
 Canonical working root for this product:
 
 `/home/clawd/.openclaw/workspace/github/repos/lead-enrichment-outreach`
