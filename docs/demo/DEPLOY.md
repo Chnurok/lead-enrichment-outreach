@@ -6,6 +6,8 @@ Use this when the demo should stay up on a VPS without a manual shell session.
 
 - `deploy/lead-enrichment-demo.service`
 - `deploy/nginx-lead-enrichment-demo.conf`
+- `deploy/smoke-demo.sh`
+- `docs/demo/SMOKE_CHECKLIST.md`
 
 ## Assumed app path
 
@@ -30,7 +32,18 @@ python3 -m unittest discover -s tests -q
 python3 ui/review_server.py --build-demo-batch-only --demo-batch-file examples/demo-output.json >/tmp/lead-enrichment-demo-batch.json
 ```
 
-## 2. Install systemd unit
+## 2. Create auth token env file
+
+```bash
+sudo tee /etc/lead-enrichment-demo.env >/dev/null <<'EOF'
+REVIEW_UI_AUTH_TOKEN=replace-with-a-long-random-token
+EOF
+sudo chmod 600 /etc/lead-enrichment-demo.env
+```
+
+The public demo now requires that token. Open the UI with `?token=...`; the server upgrades it into an auth cookie and redirects the browser to a clean URL after the first hit.
+
+## 3. Install systemd unit
 
 ```bash
 sudo cp deploy/lead-enrichment-demo.service /etc/systemd/system/lead-enrichment-demo.service
@@ -42,7 +55,8 @@ Check:
 
 ```bash
 systemctl status lead-enrichment-demo.service --no-pager
-curl -fsS http://127.0.0.1:8095/healthz
+TOKEN=$(sudo sed -n 's/^REVIEW_UI_AUTH_TOKEN=//p' /etc/lead-enrichment-demo.env)
+curl -fsS -H "X-Review-Token: $TOKEN" http://127.0.0.1:8095/healthz
 ```
 
 Expected health signals:
@@ -51,7 +65,7 @@ Expected health signals:
 - `demo_batch_summary.review_required` is `1`
 - `demo_batch_summary.blocked` is `1`
 
-## 3. Put nginx in front
+## 4. Put nginx in front
 
 ```bash
 sudo cp deploy/nginx-lead-enrichment-demo.conf /etc/nginx/sites-available/lead-enrichment-demo.conf
@@ -60,13 +74,15 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
+Before enabling it, update `server_name` in the nginx file so it does not collide with unrelated sites on the box.
+
 Then open:
 
 ```text
-http://YOUR_HOST/
+http://YOUR_HOST/?token=YOUR_TOKEN
 ```
 
-## 4. Update flow
+## 5. Update flow
 
 ```bash
 cd /opt/lead-enrichment-outreach
@@ -74,12 +90,15 @@ git pull
 python3 -m unittest discover -s tests -q
 python3 ui/review_server.py --build-demo-batch-only --demo-batch-file examples/demo-output.json >/tmp/lead-enrichment-demo-batch.json
 sudo systemctl restart lead-enrichment-demo.service
-curl -fsS http://127.0.0.1:8095/healthz
+TOKEN=$(sudo sed -n 's/^REVIEW_UI_AUTH_TOKEN=//p' /etc/lead-enrichment-demo.env)
+curl -fsS -H "X-Review-Token: $TOKEN" http://127.0.0.1:8095/healthz
+./deploy/smoke-demo.sh http://127.0.0.1:18095
 ```
 
 ## Notes
 
 - This is for a demo box, not a production multi-user deployment.
-- The app still has no auth and should only expose sanitized demo data.
+- The app now requires a shared auth token for non-local access.
 - If you want TLS, terminate it at nginx or a higher-level proxy.
 - The bundled systemd unit already starts the server with `--demo`, but rebuilding the demo batch explicitly during install/update gives you a simple preflight and a file you can inspect if health looks wrong.
+- The smoke script assumes `/etc/lead-enrichment-demo.env` unless `REVIEW_UI_AUTH_TOKEN` or `TOKEN_FILE` is set explicitly.

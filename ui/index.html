@@ -119,6 +119,15 @@
       color: #304139;
       line-height: 1.5;
     }
+    .guided-box {
+      margin-top: 12px;
+      padding: 12px 14px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.84);
+      border: 1px solid rgba(21,93,75,0.12);
+    }
+    .guided-box strong { display: block; margin-bottom: 4px; }
+    .guided-box small { display: block; color: var(--muted); line-height: 1.45; margin-bottom: 10px; }
     .header, .grid, .footer { display: grid; gap: 16px; }
     .header { grid-template-columns: 2fr 1fr; align-items: start; }
     .card {
@@ -242,6 +251,12 @@
       transition: transform 120ms ease, opacity 120ms ease, box-shadow 120ms ease;
     }
     button:hover { transform: translateY(-1px); box-shadow: 0 10px 18px rgba(0,0,0,0.08); }
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.52;
+      transform: none;
+      box-shadow: none;
+    }
     .approve { background: #1f9d62; color: white; }
     .reject { background: #d64555; color: white; }
     .needs-review { background: #f0b34f; color: #3b2a09; }
@@ -249,6 +264,25 @@
     .note { min-height: 90px; }
     .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .flash { position: sticky; bottom: 12px; margin-top: 12px; color: var(--ok); font-weight: 700; display: none; }
+    .dirty-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 10px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: #fff4df;
+      border: 1px solid rgba(160,90,0,0.16);
+      color: var(--warn);
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .shortcut-note {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
     .hero-note {
       margin-top: 14px;
       padding: 12px 14px;
@@ -296,6 +330,7 @@
       line-height: 1.45;
       color: #4f4a43;
     }
+    .hint-box strong { display: block; margin-bottom: 4px; }
     .trust-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -329,6 +364,62 @@
       color: #564f46;
     }
     .scenario-pill b { color: var(--accent); }
+    .overview-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .overview-box, .story-box {
+      padding: 14px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.76);
+      border: 1px solid rgba(0,0,0,0.06);
+    }
+    .story-box strong, .overview-box strong { display: block; margin-bottom: 6px; }
+    .overview-list {
+      margin: 0;
+      padding-left: 18px;
+      color: #4f4a43;
+      line-height: 1.45;
+    }
+    .triage-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .triage-box {
+      padding: 12px;
+      border-radius: 14px;
+      background: #f8fafc;
+      border: 1px solid var(--line);
+    }
+    .triage-box strong { display: block; font-size: 20px; margin-bottom: 4px; }
+    .triage-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .triage-item {
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.84);
+      border: 1px solid rgba(0,0,0,0.05);
+    }
+    .triage-item.active {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(21,93,75,0.10);
+    }
+    .triage-item button {
+      padding: 0;
+      border: 0;
+      background: transparent;
+      box-shadow: none;
+      text-align: left;
+      width: 100%;
+      color: inherit;
+    }
     @media (max-width: 920px) {
       .hero-grid,
       .header, .grid, .two-col { grid-template-columns: 1fr; }
@@ -336,6 +427,7 @@
       .page { padding: 16px; }
       .hero-title { max-width: none; font-size: 34px; }
       .trust-grid { grid-template-columns: 1fr; }
+      .overview-grid, .triage-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -382,6 +474,11 @@
           <h3 id="demoRouteTitle">Demo route</h3>
           <div id="demoChecklist" class="demo-checklist"></div>
           <div id="storyBanner" class="story-banner">Load the demo batch, open the recommended lead, confirm the draft, save the review file, then export the approved handoff bundle.</div>
+          <div id="guidedBox" class="guided-box">
+            <strong id="guidedTitle">Guided demo is off</strong>
+            <small id="guidedCopy">Start the 90-second demo to let the UI point you to the next presenter move automatically.</small>
+            <button id="guidedAdvanceBtn" class="save" onclick="advanceGuidedDemo()" disabled>Advance guided step</button>
+          </div>
         </div>
       </div>
     </section>
@@ -442,6 +539,17 @@
           <strong id="operatorDecisionTitle">Operator decision</strong>
           <small id="operatorStatus"></small>
         </div>
+        <div id="dirtyBadge" class="dirty-badge" style="display:none;">Unsaved changes</div>
+        <div class="overview-grid">
+          <div id="overviewNow" class="overview-box">
+            <strong>What matters now</strong>
+            <ul class="overview-list"><li>Load a batch to get a live operator summary.</li></ul>
+          </div>
+          <div id="storyNow" class="story-box">
+            <strong>Demo story</strong>
+            <div>Load the demo batch to get the clearest narrative and next presenter step.</div>
+          </div>
+        </div>
       </section>
     </div>
 
@@ -454,6 +562,10 @@
           <div id="batchSummary" class="batch-summary"></div>
           <div id="bundleSummary" class="bundle-box muted" style="display:none;"></div>
           <div id="queueHint" class="hint-box">Load a batch to see the clearest next operator action.</div>
+          <div class="batch-actions">
+            <button id="openPendingApprovalBtn" class="ghost" onclick="openNextPendingApproval()">Open next pending approval</button>
+            <button id="jumpApprovedExportBtn" class="ghost" onclick="jumpToApprovedExport()">Jump to approved export</button>
+          </div>
           <div class="action-group">
             <span id="exportReadyLabel" class="action-label">Export ready leads</span>
             <div class="batch-actions">
@@ -470,6 +582,7 @@
               <button id="exportHandoffBundleBtn" class="save" onclick="exportHandoffBundle()">Export full handoff bundle</button>
             </div>
           </div>
+          <div id="exportHint" class="hint-box">Load a batch to see which export artifacts are available now.</div>
           <div id="batchList" class="batch-list"></div>
         </section>
 
@@ -505,8 +618,11 @@
           <p id="savedReviewsLead" class="section-lead">These files are the durable checkpoint between review and export.</p>
           <div id="savedReviewsEmpty" class="muted empty-state">No saved review files yet. Save at least one reviewed ready lead to create exportable approval state.</div>
           <div class="batch-actions">
+            <button id="savedPendingBtn" class="ghost" onclick="openNextPendingApproval()">Open pending approval</button>
+            <button id="savedApprovedBtn" class="ghost" onclick="openFirstApprovedReview()">Open approved review</button>
             <button id="refreshSavedBtn" class="save" onclick="loadSavedReviews()">Refresh saved reviews</button>
           </div>
+          <div id="savedReviewsTriage" class="triage-grid"></div>
           <div id="savedReviewsList" class="batch-list"></div>
         </section>
 
@@ -576,6 +692,8 @@
             <button id="saveBtn" class="save" onclick="saveReview()">Save</button>
             <button id="saveAsBtn" class="save" onclick="saveAsReviewFile()">Save as review file</button>
           </div>
+          <div id="postActionHint" class="hint-box">Save the review to see the clearest next operator step for this lead.</div>
+          <div id="shortcutNote" class="shortcut-note">Shortcuts: Ctrl/Cmd+S save, Ctrl/Cmd+Shift+S save as review file, J/K move through queue, 1/2/3 set decision.</div>
           <div id="flash" class="flash">Saved</div>
         </section>
       </div>
@@ -583,12 +701,378 @@
   </div>
 
   <script>
+    const MAX_CLIENT_IMPORT_BYTES = 1024 * 1024;
+    const MAX_CLIENT_CSV_BYTES = 256 * 1024;
     let state = null;
     let batchState = null;
     let activeBatchIndex = null;
     let savedReviewsState = [];
     let bundleSummaryState = null;
     let currentLang = localStorage.getItem('leo_demo_lang') || 'en';
+    let busyAction = null;
+    let guidedDemoMode = false;
+    let pristineReviewSnapshot = null;
+    let suppressDirtyTracking = false;
+
+    function renderAuthRequired() {
+      document.body.innerHTML = `
+        <main style="min-height:100vh;display:grid;place-items:center;padding:24px;background:linear-gradient(180deg,#f5f0e7 0%,#efe8dc 100%);font-family:'IBM Plex Sans','Segoe UI',sans-serif;color:#1f241f;">
+          <section style="max-width:560px;padding:28px;border-radius:24px;background:rgba(255,255,255,0.92);border:1px solid rgba(0,0,0,0.08);box-shadow:0 20px 48px rgba(56,42,18,0.10);">
+            <div style="font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#155d4b;margin-bottom:10px;">Demo access</div>
+            <h1 style="margin:0 0 10px;font-size:32px;line-height:1;">Token required</h1>
+            <p style="margin:0;color:#4f564f;line-height:1.55;">Open this page with <code>?token=YOUR_TOKEN</code>. The server will bootstrap a secure demo session and redirect you to a clean URL.</p>
+          </section>
+        </main>
+      `;
+    }
+
+    async function apiFetch(path, options = {}) {
+      const response = await fetch(path, options);
+      if (response.status === 401) {
+        renderAuthRequired();
+        throw new Error('auth required');
+      }
+      return response;
+    }
+
+    function setBusyAction(actionName, isBusy) {
+      busyAction = isBusy ? actionName : (busyAction === actionName ? null : busyAction);
+      const map = {
+        openNextReadyWithoutDraft: ['openNextReadyBtn'],
+        saveAllReadyMissingReviews: ['saveAllReviewsBtn'],
+        generateReadyMissingDrafts: ['generateDraftsBtn'],
+        approveAllReadySavedReviews: ['approveAllSavedBtn'],
+        saveReview: ['saveBtn', 'saveAsBtn', 'approveBtn', 'rejectBtn', 'needsReviewBtn'],
+        saveAsReviewFile: ['saveBtn', 'saveAsBtn', 'approveBtn', 'rejectBtn', 'needsReviewBtn'],
+      };
+      Object.entries(map).forEach(([name, ids]) => {
+        ids.forEach(id => {
+          const el = document.getElementById(id);
+          if (!el) return;
+          const disabled = Boolean(busyAction) && (busyAction === actionName ? isBusy : name !== actionName);
+          el.disabled = disabled;
+          el.dataset.busy = disabled ? 'true' : 'false';
+        });
+      });
+    }
+
+    function showFlash(message) {
+      const flash = document.getElementById('flash');
+      flash.textContent = message;
+      flash.style.display = 'block';
+      setTimeout(() => {
+        flash.style.display = 'none';
+        flash.textContent = currentLang === 'ru' ? 'Сохранено' : 'Saved';
+      }, 2200);
+    }
+
+    function getEditorSnapshot() {
+      return {
+        target_contact: document.getElementById('targetContact')?.value || '',
+        subject: document.getElementById('subject')?.value || '',
+        body: document.getElementById('body')?.value || '',
+        notes: document.getElementById('notes')?.value || '',
+        decision: document.getElementById('decision')?.value || 'needs_review',
+      };
+    }
+
+    function buildStateEditorSnapshot() {
+      return {
+        target_contact: state?.draft?.target_contact || '',
+        subject: state?.draft?.subject || '',
+        body: state?.draft?.body || '',
+        notes: state?.review_decision?.notes || '',
+        decision: state?.review_decision?.status || 'needs_review',
+      };
+    }
+
+    function hasUnsavedChanges() {
+      if (!state || !pristineReviewSnapshot) return false;
+      return JSON.stringify(getEditorSnapshot()) !== JSON.stringify(pristineReviewSnapshot);
+    }
+
+    function updateDirtyBadge() {
+      const badge = document.getElementById('dirtyBadge');
+      if (!badge) return;
+      badge.textContent = currentLang === 'ru' ? 'Есть несохранённые правки' : 'Unsaved changes';
+      badge.style.display = hasUnsavedChanges() ? 'inline-flex' : 'none';
+    }
+
+    function resetPristineSnapshot() {
+      pristineReviewSnapshot = buildStateEditorSnapshot();
+      updateDirtyBadge();
+    }
+
+    function populateEditorFromState() {
+      suppressDirtyTracking = true;
+      document.getElementById('targetContact').value = state?.draft?.target_contact || '';
+      document.getElementById('subject').value = state?.draft?.subject || '';
+      document.getElementById('body').value = state?.draft?.body || '';
+      document.getElementById('notes').value = state?.review_decision?.notes || '';
+      document.getElementById('decision').value = state?.review_decision?.status || 'needs_review';
+      suppressDirtyTracking = false;
+      resetPristineSnapshot();
+    }
+
+    function trackEditorChanges() {
+      if (suppressDirtyTracking) return;
+      updateDirtyBadge();
+    }
+
+    function confirmDiscardUnsavedChanges() {
+      if (!hasUnsavedChanges()) return true;
+      return window.confirm(currentLang === 'ru'
+        ? 'Есть несохранённые правки. Отбросить их и продолжить?'
+        : 'You have unsaved changes. Discard them and continue?');
+    }
+
+    function getExportAvailability() {
+      if (!batchState) {
+        return {
+          readyCount: 0,
+          approvedReadyCount: 0,
+          savedReviewCount: savedReviewsState.length,
+          hasReadyExport: false,
+          hasApprovedExport: false,
+          hasHandoffBundle: false,
+        };
+      }
+      const results = extractBatchResults(batchState);
+      const readyItems = results.filter(item => getBatchStatus(item) === 'ready');
+      const approvedCompanies = new Set(
+        savedReviewsState
+          .filter(item => item.review_status === 'ready' && item.decision_status === 'approved')
+          .map(item => String(item.company || '').toLowerCase())
+      );
+      const approvedReadyCount = readyItems.filter(item => approvedCompanies.has(getBatchCompany(item).toLowerCase())).length;
+      return {
+        readyCount: readyItems.length,
+        approvedReadyCount,
+        savedReviewCount: savedReviewsState.length,
+        hasReadyExport: readyItems.length > 0,
+        hasApprovedExport: approvedReadyCount > 0,
+        hasHandoffBundle: readyItems.length > 0 || savedReviewsState.length > 0,
+      };
+    }
+
+    function updateExportActions() {
+      const exportHint = document.getElementById('exportHint');
+      const availability = getExportAvailability();
+      const readyButtons = ['exportReadyJsonBtn', 'exportReadyCsvBtn'];
+      const approvedButtons = ['exportApprovedJsonBtn', 'exportApprovedCsvBtn', 'exportApprovedBundleBtn'];
+      const handoffButtons = ['exportHandoffBundleBtn'];
+      const pendingButtons = ['openPendingApprovalBtn', 'savedPendingBtn'];
+      const approvedJumpButtons = ['jumpApprovedExportBtn', 'savedApprovedBtn'];
+
+      readyButtons.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = !availability.hasReadyExport;
+      });
+      approvedButtons.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = !availability.hasApprovedExport;
+      });
+      handoffButtons.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = !availability.hasHandoffBundle;
+      });
+      pendingButtons.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = getPendingApprovalReviewIndex() < 0;
+      });
+      approvedJumpButtons.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = getApprovedReviewIndex() < 0;
+      });
+
+      if (!exportHint) return;
+      if (!batchState) {
+        exportHint.innerHTML = currentLang === 'ru'
+          ? '<strong>Экспорт пока недоступен</strong>Сначала загрузи пакет или bundle, чтобы UI показал, какие артефакты уже можно отдать дальше.'
+          : '<strong>Export is not available yet</strong>Load a batch or bundle first so the UI can show which handoff artifacts are already eligible.';
+        return;
+      }
+      if (!availability.hasReadyExport) {
+        exportHint.innerHTML = currentLang === 'ru'
+          ? '<strong>Ready export заблокирован</strong>В этом пакете пока нет ни одного ready лида, поэтому сначала нужно усилить trust/evidence upstream.'
+          : '<strong>Ready export is blocked</strong>This batch has no ready leads yet, so trust and evidence need to improve upstream first.';
+        return;
+      }
+      if (!availability.hasApprovedExport) {
+        exportHint.innerHTML = currentLang === 'ru'
+          ? `<strong>Approved export ещё не готов</strong>Ready лидов: ${esc(availability.readyCount)}. Одобри хотя бы один сохранённый ready review, чтобы разблокировать approved JSON/CSV/bundle.`
+          : `<strong>Approved export is not ready yet</strong>Ready leads: ${esc(availability.readyCount)}. Approve at least one saved ready review to unlock approved JSON/CSV/bundle.`;
+        return;
+      }
+      exportHint.innerHTML = currentLang === 'ru'
+        ? `<strong>Экспорт готов</strong>Ready лидов: ${esc(availability.readyCount)}. Из них уже approved: ${esc(availability.approvedReadyCount)}. Можно выгружать как полный handoff, так и только approved subset.`
+        : `<strong>Export is ready</strong>Ready leads: ${esc(availability.readyCount)}. Already approved: ${esc(availability.approvedReadyCount)}. You can export either the full handoff or the approved-only subset.`;
+    }
+
+    function getGuidedDemoStep() {
+      const saved = state?.lead?.company ? getSavedReviewByCompany(state.lead.company) : null;
+      const approved = saved?.decision_status === 'approved';
+      const reviewStatus = state?.dossier?.review?.status;
+      if (!guidedDemoMode) {
+        return {
+          title: currentLang === 'ru' ? 'Guided demo выключен' : 'Guided demo is off',
+          copy: currentLang === 'ru'
+            ? 'Запусти 90-second demo, и UI начнёт подсказывать следующий ход сам.'
+            : 'Start the 90-second demo and the UI will suggest the next presenter move automatically.',
+          canAdvance: false,
+          action: null,
+        };
+      }
+      if (!batchState) {
+        return {
+          title: currentLang === 'ru' ? 'Шаг 1. Загрузить demo batch' : 'Step 1. Load the demo batch',
+          copy: currentLang === 'ru'
+            ? 'Сначала подними детерминированный пакет, чтобы весь маршрут был воспроизводим.'
+            : 'First load the deterministic batch so the whole walkthrough stays reproducible.',
+          canAdvance: true,
+          action: 'load_batch',
+        };
+      }
+      if (reviewStatus !== 'ready') {
+        return {
+          title: currentLang === 'ru' ? 'Шаг 2. Открыть ready сценарий' : 'Step 2. Open the ready scenario',
+          copy: currentLang === 'ru'
+            ? 'Начни с самого сильного safe path, а уже потом показывай review_required и blocked.'
+            : 'Start with the strongest safe path first, then show review-required and blocked.',
+          canAdvance: true,
+          action: 'open_ready',
+        };
+      }
+      if (!saved) {
+        return {
+          title: currentLang === 'ru' ? 'Шаг 3. Сохранить review-файл' : 'Step 3. Save the review file',
+          copy: currentLang === 'ru'
+            ? 'Зафиксируй ready lead как durable checkpoint перед handoff.'
+            : 'Lock the ready lead into a durable checkpoint before handoff.',
+          canAdvance: false,
+          action: null,
+        };
+      }
+      if (!approved) {
+        return {
+          title: currentLang === 'ru' ? 'Шаг 4. Показать approval bottleneck' : 'Step 4. Show the approval bottleneck',
+          copy: currentLang === 'ru'
+            ? 'Открой pending approval состояние и покажи, что финальное решение всё ещё за человеком.'
+            : 'Use the pending-approval state to show that the final decision still belongs to a human.',
+          canAdvance: true,
+          action: 'open_pending_approval',
+        };
+      }
+      return {
+        title: currentLang === 'ru' ? 'Финал. Прыгнуть к approved export' : 'Final step. Jump to approved export',
+        copy: currentLang === 'ru'
+          ? 'История закрыта: теперь покажи approved handoff как downstream payoff.'
+          : 'The story is complete: now show approved handoff as the downstream payoff.',
+        canAdvance: true,
+        action: 'jump_export',
+      };
+    }
+
+    function renderGuidedDemoBox() {
+      const title = document.getElementById('guidedTitle');
+      const copy = document.getElementById('guidedCopy');
+      const btn = document.getElementById('guidedAdvanceBtn');
+      if (!title || !copy || !btn) return;
+      const step = getGuidedDemoStep();
+      title.textContent = step.title;
+      copy.textContent = step.copy;
+      btn.disabled = !step.canAdvance;
+      btn.textContent = currentLang === 'ru' ? 'Следующий guided step' : 'Advance guided step';
+    }
+
+    async function advanceGuidedDemo() {
+      const step = getGuidedDemoStep();
+      if (!step.canAdvance || !step.action) return;
+      if (step.action === 'load_batch') {
+        await loadDemoBatch();
+        scrollToSection('queueCard');
+        return;
+      }
+      if (step.action === 'open_ready') {
+        await openScenario('ready');
+        scrollToSection('queueCard');
+        return;
+      }
+      if (step.action === 'open_pending_approval') {
+        await openNextPendingApproval();
+        return;
+      }
+      if (step.action === 'jump_export') {
+        jumpToApprovedExport();
+      }
+    }
+
+    function focusNextUsefulLead(preferredStatus = 'ready') {
+      if (!batchState) return;
+      const results = extractBatchResults(batchState);
+      const preferred = results.findIndex(item => getBatchStatus(item) === preferredStatus);
+      if (preferred >= 0) {
+        openBatchLead(preferred);
+        return;
+      }
+      const fallback = getRecommendedBatchIndex(results);
+      if (fallback !== null && fallback >= 0) {
+        openBatchLead(fallback);
+      }
+    }
+
+    function getPendingApprovalReviewIndex() {
+      return savedReviewsState.findIndex(item => item.review_status === 'ready' && item.decision_status !== 'approved');
+    }
+
+    function getApprovedReviewIndex() {
+      return savedReviewsState.findIndex(item => item.review_status === 'ready' && item.decision_status === 'approved');
+    }
+
+    async function openNextPendingApproval() {
+      const index = getPendingApprovalReviewIndex();
+      if (index < 0) {
+        alert(currentLang === 'ru' ? 'Нет сохранённых ready review, которые ждут approval' : 'No saved ready reviews are waiting for approval');
+        return;
+      }
+      await openSavedReviewByIndex(index);
+      scrollToSection('draftCard');
+    }
+
+    async function openFirstApprovedReview() {
+      const index = getApprovedReviewIndex();
+      if (index < 0) {
+        alert(currentLang === 'ru' ? 'Пока нет approved review-файлов' : 'There are no approved review files yet');
+        return;
+      }
+      await openSavedReviewByIndex(index);
+      scrollToSection('draftCard');
+    }
+
+    function jumpToApprovedExport() {
+      if (getApprovedReviewIndex() < 0) {
+        alert(currentLang === 'ru' ? 'Сначала нужен хотя бы один approved ready review' : 'You need at least one approved ready review first');
+        return;
+      }
+      scrollToSection('queueCard');
+    }
+
+    function resetFileInput(event) {
+      if (event?.target) {
+        event.target.value = '';
+      }
+    }
+
+    function ensureFileWithinLimit(file, maxBytes, label) {
+      if (!file) return false;
+      if (file.size > maxBytes) {
+        alert(currentLang === 'ru'
+          ? `${label} превышает лимит ${Math.round(maxBytes / 1024)} KB`
+          : `${label} exceeds the ${Math.round(maxBytes / 1024)} KB limit`);
+        return false;
+      }
+      return true;
+    }
 
     const UI = {
       en: {
@@ -781,6 +1265,7 @@
     }
 
     function setLanguage(lang) {
+      const dirtySnapshot = hasUnsavedChanges() ? getEditorSnapshot() : null;
       currentLang = lang === 'ru' ? 'ru' : 'en';
       localStorage.setItem('leo_demo_lang', currentLang);
       document.documentElement.lang = currentLang;
@@ -815,11 +1300,29 @@
       if (flash && (flash.textContent === 'Saved' || flash.textContent === 'Сохранено')) {
         flash.textContent = currentLang === 'ru' ? 'Сохранено' : 'Saved';
       }
+      const shortcutNote = document.getElementById('shortcutNote');
+      if (shortcutNote) {
+        shortcutNote.textContent = currentLang === 'ru'
+          ? 'Шорткаты: Ctrl/Cmd+S сохранить, Ctrl/Cmd+Shift+S сохранить review-файл, J/K ходить по очереди, 1/2/3 ставить решение.'
+          : 'Shortcuts: Ctrl/Cmd+S save, Ctrl/Cmd+Shift+S save as review file, J/K move through queue, 1/2/3 set decision.';
+      }
+      updateDirtyBadge();
+      renderPresenterOverview();
       renderScenarioPills();
       render();
       renderBatch();
       renderSavedReviews();
       renderOpsDashboard();
+      if (dirtySnapshot) {
+        suppressDirtyTracking = true;
+        document.getElementById('targetContact').value = dirtySnapshot.target_contact;
+        document.getElementById('subject').value = dirtySnapshot.subject;
+        document.getElementById('body').value = dirtySnapshot.body;
+        document.getElementById('notes').value = dirtySnapshot.notes;
+        document.getElementById('decision').value = dirtySnapshot.decision;
+        suppressDirtyTracking = false;
+        updateDirtyBadge();
+      }
     }
 
     function esc(value) {
@@ -967,6 +1470,69 @@
       };
     }
 
+    function buildPresenterSummary() {
+      const results = extractBatchResults(batchState);
+      const readyCount = results.filter(item => getBatchStatus(item) === 'ready').length;
+      const reviewCount = results.filter(item => getBatchStatus(item) === 'review_required').length;
+      const blockedCount = results.filter(item => getBatchStatus(item) === 'blocked').length;
+      const approvedCount = savedReviewsState.filter(item => item.review_status === 'ready' && item.decision_status === 'approved').length;
+      const readyWithoutDraft = results.filter(item => getBatchStatus(item) === 'ready' && !getBatchDraftState(item)).length;
+      const readyWithoutSaved = getReadyWithoutSavedReviewItems().length;
+
+      const bullets = [];
+      let story = '';
+      if (!batchState) {
+        bullets.push(currentLang === 'ru'
+          ? 'Загрузи demo batch, чтобы сразу показать trust gate, human review и handoff.'
+          : 'Load the demo batch to immediately show the trust gate, human review, and handoff.');
+        bullets.push(currentLang === 'ru'
+          ? 'Начни с ready сценария, потом переключись на review_required и blocked.'
+          : 'Start with the ready scenario, then switch to review_required and blocked.');
+        story = currentLang === 'ru'
+          ? 'Сейчас история ещё не загружена. Первый ход: открыть детерминированный пакет и взять самый сильный ready lead.'
+          : 'The story is not loaded yet. First move: open the deterministic batch and take the strongest ready lead.';
+        return { bullets, story };
+      }
+
+      bullets.push(currentLang === 'ru'
+        ? `В пакете ${results.length} лидов: ready ${readyCount}, review ${reviewCount}, blocked ${blockedCount}.`
+        : `This batch has ${results.length} leads: ${readyCount} ready, ${reviewCount} review-required, ${blockedCount} blocked.`);
+      bullets.push(currentLang === 'ru'
+        ? `Approved-ready handoff сейчас покрывает ${approvedCount} лида(ов).`
+        : `Approved-ready handoff currently covers ${approvedCount} lead(s).`);
+
+      if (readyWithoutDraft > 0) {
+        bullets.push(currentLang === 'ru'
+          ? `${readyWithoutDraft} ready лида всё ещё без черновика.`
+          : `${readyWithoutDraft} ready lead(s) still have no draft.`);
+        story = currentLang === 'ru'
+          ? 'Самая сильная история сейчас: система уже нашла безопасные лиды, но человек ещё не прошёл путь до draft completion.'
+          : 'The strongest story right now: the system has found safe leads, but the human has not yet completed the draft path.';
+      } else if (readyWithoutSaved > 0) {
+        bullets.push(currentLang === 'ru'
+          ? `${readyWithoutSaved} ready лида ещё не зафиксированы в saved review.`
+          : `${readyWithoutSaved} ready lead(s) are not yet locked into saved review files.`);
+        story = currentLang === 'ru'
+          ? 'История сейчас про операционный checkpoint: доверие уже зелёное, но durable handoff state ещё не зафиксирован.'
+          : 'The story is now about the operator checkpoint: trust is green, but durable handoff state is not yet locked in.';
+      } else if (approvedCount < readyCount) {
+        bullets.push(currentLang === 'ru'
+          ? `До полного approved handoff не хватает ${readyCount - approvedCount} approval.`
+          : `${readyCount - approvedCount} more approval decision(s) are needed for full approved handoff.`);
+        story = currentLang === 'ru'
+          ? 'История сейчас про человеческое решение: система подготовила кандидатов, но approval всё ещё принадлежит оператору.'
+          : 'The story is now about human judgment: the system prepared candidates, but approval still belongs to the operator.';
+      } else {
+        bullets.push(currentLang === 'ru'
+          ? 'Пакет полностью закрыт по ready -> review file -> approval.'
+          : 'The batch is fully covered across ready -> review file -> approval.');
+        story = currentLang === 'ru'
+          ? 'История завершена: можно показывать approved export как итоговую полезность для downstream ops.'
+          : 'The story is complete: you can now show approved export as the payoff for downstream ops.';
+      }
+      return { bullets, story };
+    }
+
     function renderDemoChecklist() {
       const checklist = document.getElementById('demoChecklist');
       const saved = state?.lead?.company ? getSavedReviewByCompany(state.lead.company) : null;
@@ -1004,6 +1570,56 @@
           <small>${esc(step.copy)}</small>
         </div>
       `).join('');
+      renderGuidedDemoBox();
+    }
+
+    function renderPresenterOverview() {
+      const overview = document.getElementById('overviewNow');
+      const story = document.getElementById('storyNow');
+      const heroStory = document.getElementById('storyBanner');
+      if (!overview || !story || !heroStory) return;
+      const summary = buildPresenterSummary();
+      overview.innerHTML = `
+        <strong>${currentLang === 'ru' ? 'Что важно сейчас' : 'What matters now'}</strong>
+        <ul class="overview-list">${summary.bullets.map(item => `<li>${esc(item)}</li>`).join('')}</ul>
+      `;
+      story.innerHTML = `
+        <strong>${currentLang === 'ru' ? 'Demo story' : 'Demo story'}</strong>
+        <div>${esc(summary.story)}</div>
+      `;
+      heroStory.textContent = summary.story;
+    }
+
+    function renderPostActionHint() {
+      const el = document.getElementById('postActionHint');
+      if (!el || !state?.dossier?.review) return;
+      const company = state?.lead?.company || (currentLang === 'ru' ? 'этот лид' : 'this lead');
+      const reviewStatus = state.dossier.review.status;
+      const decisionStatus = state.review_decision?.status || 'needs_review';
+      const saved = getSavedReviewByCompany(state?.lead?.company || '');
+      const savedApproved = saved?.decision_status === 'approved';
+
+      if (reviewStatus !== 'ready') {
+        el.innerHTML = currentLang === 'ru'
+          ? `<strong>Следующий шаг: ручная проверка</strong>${esc(company)} ещё не ready upstream. Здесь следующий шаг не export, а разбор evidence, контактов и причин trust gate.`
+          : `<strong>Next step: manual review</strong>${esc(company)} is not ready upstream. The next move is evidence and contact review, not export.`;
+        return;
+      }
+      if (!saved) {
+        el.innerHTML = currentLang === 'ru'
+          ? `<strong>Следующий шаг: сохранить review-файл</strong>Если ${esc(company)} идёт дальше в handoff, сначала сохрани его как durable checkpoint для approvals и export.`
+          : `<strong>Next step: save a review file</strong>If ${esc(company)} should move downstream, save it as a durable checkpoint for approvals and export first.`;
+        return;
+      }
+      if (!savedApproved && decisionStatus !== 'approved') {
+        el.innerHTML = currentLang === 'ru'
+          ? `<strong>Review-файл уже есть</strong>Теперь можно либо одобрить ${esc(company)} для handoff, либо оставить ` + '`needs_review`' + `, если перед approved export ещё нужны правки.`
+          : `<strong>The review file already exists</strong>You can now approve ${esc(company)} for handoff, or keep it on ` + '`needs_review`' + ` if the draft still needs work before approved export.`;
+        return;
+      }
+      el.innerHTML = currentLang === 'ru'
+        ? `<strong>Лид готов к payoff</strong>${esc(company)} уже сохранён${savedApproved ? ' и одобрен' : ''}. Самый логичный следующий шаг: перейти к approved export или bundle и показать downstream handoff.`
+        : `<strong>This lead is ready for payoff</strong>${esc(company)} is already saved${savedApproved ? ' and approved' : ''}. The clearest next step is approved export or bundle handoff.`;
     }
 
     function render() {
@@ -1056,11 +1672,9 @@
         </div>
       `).join('') || `<div class="muted">${currentLang === 'ru' ? 'Нет кандидатов на сайт' : 'No candidate sites'}</div>`;
 
-      document.getElementById('targetContact').value = state.draft.target_contact || '';
-      document.getElementById('subject').value = state.draft.subject || '';
-      document.getElementById('body').value = state.draft.body || '';
-      document.getElementById('notes').value = decision.notes || '';
-      document.getElementById('decision').value = decision.status || 'needs_review';
+      populateEditorFromState();
+      renderPostActionHint();
+      renderPresenterOverview();
       renderDemoChecklist();
     }
 
@@ -1090,6 +1704,7 @@
     }
 
     function openBatchLead(index) {
+      if (!confirmDiscardUnsavedChanges()) return;
       const results = extractBatchResults(batchState);
       const item = results[index];
       if (!item) return;
@@ -1144,7 +1759,7 @@
       if (!state?.lead?.company) return;
       const savedReviewMeta = getSavedReviewByCompany(state.lead.company);
       if (!savedReviewMeta?.filename) return;
-      const response = await fetch('/api/saved-reviews/open', {
+      const response = await apiFetch('/api/saved-reviews/open', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ filename: savedReviewMeta.filename })
@@ -1153,6 +1768,26 @@
       if (!response.ok || !payload.ok) return;
       state = payload.review;
       render();
+    }
+
+    function getVisibleBatchIndices() {
+      const results = extractBatchResults(batchState);
+      const filter = document.getElementById('batchFilter')?.value || 'all';
+      return results
+        .map((item, index) => ({ item, index }))
+        .filter(({ item }) => filter === 'all' || getBatchStatus(item) === filter)
+        .map(({ index }) => index);
+    }
+
+    function moveActiveLead(offset) {
+      if (!batchState || busyAction) return;
+      const visible = getVisibleBatchIndices();
+      if (!visible.length) return;
+      const currentIndex = visible.indexOf(activeBatchIndex);
+      const nextPos = currentIndex < 0
+        ? 0
+        : Math.max(0, Math.min(visible.length - 1, currentIndex + offset));
+      openBatchLead(visible[nextPos]);
     }
 
     function getRecommendedBatchIndex(results) {
@@ -1188,9 +1823,11 @@
     }
 
     async function startGuidedDemo() {
+      guidedDemoMode = true;
       await loadDemoBatch();
       await openScenario('ready');
       scrollToSection('queueCard');
+      renderGuidedDemoBox();
     }
 
     function renderBatch() {
@@ -1206,6 +1843,7 @@
         bundleSummary.style.display = 'none';
         bundleSummary.textContent = '';
         queueHint.textContent = currentLang === 'ru' ? 'Загрузи пакет, чтобы увидеть самый понятный следующий шаг для оператора.' : 'Load a batch to see the clearest next operator action.';
+        updateExportActions();
         renderScenarioPills();
         renderDemoChecklist();
         return;
@@ -1245,25 +1883,26 @@
         return getBatchStatus(item) === 'ready' && !saved;
       }).length;
       if (readyWithoutDraftCount > 0) {
-        queueHint.textContent = currentLang === 'ru'
-          ? `Лучший следующий шаг: у ${readyWithoutDraftCount} готовых лидов всё ещё нет черновика.`
-          : `Best next step: ${readyWithoutDraftCount} ready lead${readyWithoutDraftCount === 1 ? '' : 's'} still need a draft.`;
+        queueHint.innerHTML = currentLang === 'ru'
+          ? `<strong>Лучший следующий шаг</strong>У ${readyWithoutDraftCount} ready лидов всё ещё нет черновика. Начни с их открытия или массовой генерации draft.`
+          : `<strong>Best next step</strong>${readyWithoutDraftCount} ready lead${readyWithoutDraftCount === 1 ? '' : 's'} still need a draft. Start by opening one or generating the missing drafts in bulk.`;
       } else if (readyWithoutSavedCount > 0) {
-        queueHint.textContent = currentLang === 'ru'
-          ? `Лучший следующий шаг: у ${readyWithoutSavedCount} готовых лидов всё ещё нет сохранённого review-файла.`
-          : `Best next step: ${readyWithoutSavedCount} ready lead${readyWithoutSavedCount === 1 ? '' : 's'} still need a saved review file.`;
+        queueHint.innerHTML = currentLang === 'ru'
+          ? `<strong>Лучший следующий шаг</strong>У ${readyWithoutSavedCount} ready лидов всё ещё нет сохранённого review-файла. Сохрани их как durable checkpoint перед handoff.`
+          : `<strong>Best next step</strong>${readyWithoutSavedCount} ready lead${readyWithoutSavedCount === 1 ? '' : 's'} still need a saved review file. Save them as durable checkpoints before handoff.`;
       } else if (counts.ready > 0) {
-        queueHint.textContent = currentLang === 'ru'
-          ? 'Лучший следующий шаг: открой готовый лид, подтверди решение и затем экспортируй approved handoff.'
-          : 'Best next step: review a ready lead, confirm the decision, then export the approved handoff.';
+        const pendingApprovals = getPendingApprovalReviewIndex() >= 0;
+        queueHint.innerHTML = currentLang === 'ru'
+          ? `<strong>Лучший следующий шаг</strong>${pendingApprovals ? 'Открой следующий pending approval review и дожми его до approved handoff.' : 'Готовый путь уже собран. Можно сразу прыгать к approved export и показать payoff.'}`
+          : `<strong>Best next step</strong>${pendingApprovals ? 'Open the next pending-approval review and push it through to approved handoff.' : 'The ready path is already lined up. You can jump straight to approved export and show the payoff.'}`;
       } else if (counts.review_required > 0) {
-        queueHint.textContent = currentLang === 'ru'
-          ? 'Лучший следующий шаг: изучи лиды с review и реши, заслуживает ли кто-то ручного override.'
-          : 'Best next step: inspect review-required leads and decide whether any deserve a manual override.';
+        queueHint.innerHTML = currentLang === 'ru'
+          ? '<strong>Лучший следующий шаг</strong>Изучи лиды с review и реши, заслуживает ли кто-то ручного override.'
+          : '<strong>Best next step</strong>Inspect review-required leads and decide whether any deserve a manual override.';
       } else {
-        queueHint.textContent = currentLang === 'ru'
-          ? 'Готовых лидов пока нет. Этот пакет в основном заблокирован или всё ещё ждёт лучших доказательств.'
-          : 'No ready leads yet. This batch is mostly blocked or still waiting on better evidence.';
+        queueHint.innerHTML = currentLang === 'ru'
+          ? '<strong>Готовых лидов пока нет</strong>Этот пакет в основном заблокирован или всё ещё ждёт лучших доказательств.'
+          : '<strong>No ready leads yet</strong>This batch is mostly blocked or still waiting on better evidence.';
       }
 
       list.innerHTML = filtered.map(item => {
@@ -1287,6 +1926,7 @@
         </button>
       `;
       }).join('') || `<div class="muted">${currentLang === 'ru' ? 'Нет лидов, подходящих под этот фильтр.' : 'No leads match this filter.'}</div>`;
+      updateExportActions();
       renderScenarioPills();
       renderDemoChecklist();
     }
@@ -1294,13 +1934,55 @@
     function renderSavedReviews() {
       const empty = document.getElementById('savedReviewsEmpty');
       const list = document.getElementById('savedReviewsList');
+      const triage = document.getElementById('savedReviewsTriage');
       if (!savedReviewsState.length) {
         empty.style.display = 'block';
+        triage.innerHTML = '';
         list.innerHTML = '';
+        renderPresenterOverview();
         renderDemoChecklist();
         return;
       }
       empty.style.display = 'none';
+      const pendingItems = savedReviewsState.filter(item => item.review_status === 'ready' && item.decision_status !== 'approved');
+      const approvedItems = savedReviewsState.filter(item => item.review_status === 'ready' && item.decision_status === 'approved');
+      const nonReadyItems = savedReviewsState.filter(item => item.review_status !== 'ready');
+      const renderTriageItems = (items) => items.slice(0, 4).map(item => {
+        const index = savedReviewsState.indexOf(item);
+        const isActive = state?.lead?.company && String(state.lead.company).toLowerCase() === String(item.company || '').toLowerCase();
+        return `
+          <div class="triage-item ${isActive ? 'active' : ''}">
+            <button type="button" onclick="openSavedReviewByIndex(${index})">
+              <strong>${esc(item.company)}</strong>
+              <small>${esc(item.filename)} · ${esc(prettyStatus(item.decision_status))}</small>
+            </button>
+          </div>
+        `;
+      }).join('') || `<div class="muted">${currentLang === 'ru' ? 'Пусто' : 'Empty'}</div>`;
+      triage.innerHTML = [
+        {
+          title: currentLang === 'ru' ? 'Ждут approval' : 'Pending approval',
+          count: pendingItems.length,
+          body: renderTriageItems(pendingItems),
+        },
+        {
+          title: currentLang === 'ru' ? 'Уже approved' : 'Already approved',
+          count: approvedItems.length,
+          body: renderTriageItems(approvedItems),
+        },
+        {
+          title: currentLang === 'ru' ? 'Не готовы upstream' : 'Not ready upstream',
+          count: nonReadyItems.length,
+          body: renderTriageItems(nonReadyItems),
+        },
+      ].map(section => `
+        <div class="triage-box">
+          <strong>${esc(section.count)}</strong>
+          <small>${esc(section.title)}</small>
+          <div class="triage-list">${section.body}</div>
+        </div>
+      `).join('');
+      updateExportActions();
       list.innerHTML = savedReviewsState.map((item, index) => `
         <button type="button" class="batch-item saved-review" onclick="openSavedReviewByIndex(${index})">
           <h4>${esc(item.company)}</h4>
@@ -1311,6 +1993,7 @@
           <small>${currentLang === 'ru' ? 'Решение' : 'Decision'}: ${esc(prettyStatus(item.decision_status))}</small>
         </button>
       `).join('');
+      renderPresenterOverview();
       renderDemoChecklist();
     }
 
@@ -1388,6 +2071,7 @@
           <small>${esc(getBatchDomain(item))} · ${currentLang === 'ru' ? 'лид готов, но review-файл не сохранён' : 'ready but no saved review file'}</small>
         </div>
       `).join('') || `<div class="muted">${currentLang === 'ru' ? 'У всех ready лидов уже есть сохранённые review-файлы.' : 'All ready leads have saved review coverage.'}</div>`;
+      renderPresenterOverview();
       renderDemoChecklist();
     }
 
@@ -1425,6 +2109,7 @@
         alert(currentLang === 'ru' ? 'Сначала загрузи пакет' : 'Load a batch first');
         return;
       }
+      if (busyAction) return;
       const results = extractBatchResults(batchState);
       const target = getReadyWithoutDraftItems()[0];
       if (!target) {
@@ -1440,31 +2125,32 @@
         alert(currentLang === 'ru' ? 'Сначала загрузи пакет' : 'Load a batch first');
         return;
       }
+      if (busyAction) return;
       const items = getReadyWithoutSavedReviewItems();
       if (!items.length) {
         alert(currentLang === 'ru' ? 'У всех ready лидов уже есть сохранённые review-файлы' : 'All ready leads already have saved review files');
         return;
       }
+      setBusyAction('saveAllReadyMissingReviews', true);
       const reviews = items.map(buildReviewPayloadFromBatchItem);
-      const response = await fetch('/api/saved-reviews/save-many', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reviews })
-      });
-      const payload = await response.json();
-      if (!response.ok || !payload.ok) {
-        alert(payload.error || (currentLang === 'ru' ? 'Массовое сохранение не удалось' : 'Bulk save failed'));
-        return;
+      try {
+        const response = await apiFetch('/api/saved-reviews/save-many', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reviews })
+        });
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) {
+          alert(payload.error || (currentLang === 'ru' ? 'Массовое сохранение не удалось' : 'Bulk save failed'));
+          return;
+        }
+        await loadSavedReviews();
+        await syncActiveLeadFromSavedReview();
+        focusNextUsefulLead('ready');
+        showFlash(currentLang === 'ru' ? `Сохранено review-файлов: ${payload.count}` : `Saved ${payload.count} review files`);
+      } finally {
+        setBusyAction('saveAllReadyMissingReviews', false);
       }
-      await loadSavedReviews();
-      await syncActiveLeadFromSavedReview();
-      const flash = document.getElementById('flash');
-      flash.textContent = currentLang === 'ru' ? `Сохранено review-файлов: ${payload.count}` : `Saved ${payload.count} review files`;
-      flash.style.display = 'block';
-      setTimeout(() => {
-        flash.style.display = 'none';
-        flash.textContent = currentLang === 'ru' ? 'Сохранено' : 'Saved';
-      }, 2200);
     }
 
     async function generateReadyMissingDrafts() {
@@ -1472,34 +2158,35 @@
         alert(currentLang === 'ru' ? 'Сначала загрузи пакет' : 'Load a batch first');
         return;
       }
+      if (busyAction) return;
       const items = getReadyWithoutDraftItems();
       if (!items.length) {
         alert(currentLang === 'ru' ? 'У всех ready лидов уже есть черновики' : 'All ready leads already have drafts');
         return;
       }
-      const response = await fetch('/api/batch/generate-drafts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          batch: batchState,
-          offer: document.getElementById('batchOffer').value || null
-        })
-      });
-      const payload = await response.json();
-      if (!response.ok || !payload.ok) {
-        alert(payload.error || (currentLang === 'ru' ? 'Массовая генерация черновиков не удалась' : 'Bulk draft generation failed'));
-        return;
+      setBusyAction('generateReadyMissingDrafts', true);
+      try {
+        const response = await apiFetch('/api/batch/generate-drafts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            batch: batchState,
+            offer: document.getElementById('batchOffer').value || null
+          })
+        });
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) {
+          alert(payload.error || (currentLang === 'ru' ? 'Массовая генерация черновиков не удалась' : 'Bulk draft generation failed'));
+          return;
+        }
+        batchState = payload.batch;
+        renderBatch();
+        renderOpsDashboard();
+        focusNextUsefulLead('ready');
+        showFlash(currentLang === 'ru' ? `Сгенерировано черновиков: ${payload.generated_count}` : `Generated ${payload.generated_count} drafts`);
+      } finally {
+        setBusyAction('generateReadyMissingDrafts', false);
       }
-      batchState = payload.batch;
-      renderBatch();
-      renderOpsDashboard();
-      const flash = document.getElementById('flash');
-      flash.textContent = currentLang === 'ru' ? `Сгенерировано черновиков: ${payload.generated_count}` : `Generated ${payload.generated_count} drafts`;
-      flash.style.display = 'block';
-      setTimeout(() => {
-        flash.style.display = 'none';
-        flash.textContent = currentLang === 'ru' ? 'Сохранено' : 'Saved';
-      }, 2200);
     }
 
     async function approveAllReadySavedReviews() {
@@ -1507,6 +2194,7 @@
         alert(currentLang === 'ru' ? 'Сначала загрузи пакет' : 'Load a batch first');
         return;
       }
+      if (busyAction) return;
       const readyCompanies = new Set(
         extractBatchResults(batchState)
           .filter(item => getBatchStatus(item) === 'ready')
@@ -1519,29 +2207,30 @@
         alert(currentLang === 'ru' ? 'Нет сохранённых ready review для approval' : 'No ready saved reviews to approve');
         return;
       }
-      const response = await fetch('/api/saved-reviews/approve-many', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filenames })
-      });
-      const payload = await response.json();
-      if (!response.ok || !payload.ok) {
-        alert(payload.error || (currentLang === 'ru' ? 'Массовое одобрение не удалось' : 'Bulk approve failed'));
-        return;
+      setBusyAction('approveAllReadySavedReviews', true);
+      try {
+        const response = await apiFetch('/api/saved-reviews/approve-many', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filenames })
+        });
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) {
+          alert(payload.error || (currentLang === 'ru' ? 'Массовое одобрение не удалось' : 'Bulk approve failed'));
+          return;
+        }
+        await loadSavedReviews();
+        await syncActiveLeadFromSavedReview();
+        focusNextUsefulLead('ready');
+        showFlash(currentLang === 'ru' ? `Одобрено review-файлов: ${payload.count}` : `Approved ${payload.count} saved reviews`);
+      } finally {
+        setBusyAction('approveAllReadySavedReviews', false);
       }
-      await loadSavedReviews();
-      await syncActiveLeadFromSavedReview();
-      const flash = document.getElementById('flash');
-      flash.textContent = currentLang === 'ru' ? `Одобрено review-файлов: ${payload.count}` : `Approved ${payload.count} saved reviews`;
-      flash.style.display = 'block';
-      setTimeout(() => {
-        flash.style.display = 'none';
-        flash.textContent = currentLang === 'ru' ? 'Сохранено' : 'Saved';
-      }, 2200);
     }
 
     async function loadDemoBatch() {
-      const response = await fetch('/api/demo-batch');
+      if (!confirmDiscardUnsavedChanges()) return;
+      const response = await apiFetch('/api/demo-batch');
       batchState = await response.json();
       activeBatchIndex = null;
       bundleSummaryState = null;
@@ -1553,24 +2242,47 @@
     async function loadBatchFile(event) {
       const file = event.target.files?.[0];
       if (!file) return;
+      if (!confirmDiscardUnsavedChanges()) {
+        resetFileInput(event);
+        return;
+      }
+      if (!ensureFileWithinLimit(file, MAX_CLIENT_IMPORT_BYTES, 'JSON')) {
+        resetFileInput(event);
+        return;
+      }
       const text = await file.text();
-      batchState = JSON.parse(text);
+      try {
+        batchState = JSON.parse(text);
+      } catch (error) {
+        alert(currentLang === 'ru' ? 'JSON batch-файл повреждён или невалиден' : 'Batch JSON file is invalid');
+        resetFileInput(event);
+        return;
+      }
       activeBatchIndex = null;
       bundleSummaryState = null;
       renderBatch();
       renderOpsDashboard();
       maybeSelectRecommendedLead();
+      resetFileInput(event);
     }
 
     async function importBundleZip(event) {
       const file = event.target.files?.[0];
       if (!file) return;
+      if (!confirmDiscardUnsavedChanges()) {
+        resetFileInput(event);
+        return;
+      }
+      if (!ensureFileWithinLimit(file, MAX_CLIENT_IMPORT_BYTES, 'ZIP')) {
+        resetFileInput(event);
+        return;
+      }
       const bytes = new Uint8Array(await file.arrayBuffer());
       let binary = '';
       for (let i = 0; i < bytes.length; i += 1) {
         binary += String.fromCharCode(bytes[i]);
       }
-      const response = await fetch('/api/batch/import-bundle-zip', {
+      const response = await apiFetch('/api/batch/import-bundle-zip', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ zip_base64: btoa(binary) })
@@ -1588,17 +2300,26 @@
       renderSavedReviews();
       renderOpsDashboard();
       maybeSelectRecommendedLead();
+      resetFileInput(event);
     }
 
     async function importApprovedBundleZip(event) {
       const file = event.target.files?.[0];
       if (!file) return;
+      if (!confirmDiscardUnsavedChanges()) {
+        resetFileInput(event);
+        return;
+      }
+      if (!ensureFileWithinLimit(file, MAX_CLIENT_IMPORT_BYTES, 'ZIP')) {
+        resetFileInput(event);
+        return;
+      }
       const bytes = new Uint8Array(await file.arrayBuffer());
       let binary = '';
       for (let i = 0; i < bytes.length; i += 1) {
         binary += String.fromCharCode(bytes[i]);
       }
-      const response = await fetch('/api/batch/import-approved-bundle-zip', {
+      const response = await apiFetch('/api/batch/import-approved-bundle-zip', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ zip_base64: btoa(binary) })
@@ -1616,10 +2337,11 @@
       renderSavedReviews();
       renderOpsDashboard();
       maybeSelectRecommendedLead();
+      resetFileInput(event);
     }
 
     async function loadSavedReviews() {
-      const response = await fetch('/api/saved-reviews');
+      const response = await apiFetch('/api/saved-reviews');
       const payload = await response.json();
       if (!response.ok || !payload.ok) {
         alert(payload.error || (currentLang === 'ru' ? 'Не удалось загрузить сохранённые review-файлы' : 'Saved reviews load failed'));
@@ -1632,9 +2354,10 @@
     }
 
     async function openSavedReviewByIndex(index) {
+      if (!confirmDiscardUnsavedChanges()) return;
       const item = savedReviewsState[index];
       if (!item) return;
-      const response = await fetch('/api/saved-reviews/open', {
+      const response = await apiFetch('/api/saved-reviews/open', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ filename: item.filename })
@@ -1651,8 +2374,16 @@
     async function runBatchCsvFile(event) {
       const file = event.target.files?.[0];
       if (!file) return;
+      if (!confirmDiscardUnsavedChanges()) {
+        resetFileInput(event);
+        return;
+      }
+      if (!ensureFileWithinLimit(file, MAX_CLIENT_CSV_BYTES, 'CSV')) {
+        resetFileInput(event);
+        return;
+      }
       const csvText = await file.text();
-      const response = await fetch('/api/batch/run', {
+      const response = await apiFetch('/api/batch/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1673,6 +2404,7 @@
       renderBatch();
       renderOpsDashboard();
       maybeSelectRecommendedLead();
+      resetFileInput(event);
     }
 
     function downloadText(filename, text, contentType) {
@@ -1705,7 +2437,7 @@
         alert(currentLang === 'ru' ? 'Сначала загрузи или запусти пакет' : 'Load or run a batch first');
         return;
       }
-      const response = await fetch('/api/batch/export-ready', {
+      const response = await apiFetch('/api/batch/export-ready', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ batch: batchState })
@@ -1723,7 +2455,7 @@
         alert(currentLang === 'ru' ? 'Сначала загрузи или запусти пакет' : 'Load or run a batch first');
         return;
       }
-      const response = await fetch('/api/batch/export-ready-csv', {
+      const response = await apiFetch('/api/batch/export-ready-csv', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ batch: batchState })
@@ -1741,7 +2473,7 @@
         alert(currentLang === 'ru' ? 'Сначала загрузи или запусти пакет' : 'Load or run a batch first');
         return;
       }
-      const response = await fetch('/api/batch/export-approved', {
+      const response = await apiFetch('/api/batch/export-approved', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ batch: batchState })
@@ -1759,7 +2491,7 @@
         alert(currentLang === 'ru' ? 'Сначала загрузи или запусти пакет' : 'Load or run a batch first');
         return;
       }
-      const response = await fetch('/api/batch/export-approved-csv', {
+      const response = await apiFetch('/api/batch/export-approved-csv', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ batch: batchState })
@@ -1777,7 +2509,7 @@
         alert(currentLang === 'ru' ? 'Сначала загрузи или запусти пакет' : 'Load or run a batch first');
         return;
       }
-      const response = await fetch('/api/batch/export-approved-bundle-zip', {
+      const response = await apiFetch('/api/batch/export-approved-bundle-zip', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ batch: batchState })
@@ -1795,7 +2527,7 @@
         alert(currentLang === 'ru' ? 'Сначала загрузи или запусти пакет' : 'Load or run a batch first');
         return;
       }
-      const response = await fetch('/api/batch/export-bundle-zip', {
+      const response = await apiFetch('/api/batch/export-bundle-zip', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ batch: batchState })
@@ -1810,67 +2542,125 @@
 
     function setDecision(value) {
       document.getElementById('decision').value = value;
+      trackEditorChanges();
     }
 
     async function loadReview() {
-      const response = await fetch('/api/review');
+      const response = await apiFetch('/api/review');
       state = await response.json();
       render();
     }
 
     async function saveReview() {
+      if (busyAction) return;
+      setBusyAction('saveReview', true);
       state.draft.target_contact = document.getElementById('targetContact').value;
       state.draft.subject = document.getElementById('subject').value;
       state.draft.body = document.getElementById('body').value;
       state.review_decision.status = document.getElementById('decision').value;
       state.review_decision.notes = document.getElementById('notes').value;
       state.review_decision.updated_at = new Date().toISOString();
-      const response = await fetch('/api/review', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(state)
-      });
-      const payload = await response.json();
-      if (!response.ok || !payload.ok) {
-        alert(payload.error || (currentLang === 'ru' ? 'Сохранение не удалось' : 'Save failed'));
-        return;
+      try {
+        const response = await apiFetch('/api/review', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(state)
+        });
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) {
+          alert(payload.error || (currentLang === 'ru' ? 'Сохранение не удалось' : 'Save failed'));
+          return;
+        }
+        state = payload.review;
+        render();
+        showFlash(currentLang === 'ru' ? 'Сохранено. Следующий шаг обновлён ниже.' : 'Saved. The next step is updated below.');
+      } finally {
+        setBusyAction('saveReview', false);
       }
-      state = payload.review;
-      render();
-      const flash = document.getElementById('flash');
-      flash.style.display = 'block';
-      setTimeout(() => { flash.style.display = 'none'; }, 1500);
     }
 
     async function saveAsReviewFile() {
+      if (busyAction) return;
+      setBusyAction('saveAsReviewFile', true);
       state.draft.target_contact = document.getElementById('targetContact').value;
       state.draft.subject = document.getElementById('subject').value;
       state.draft.body = document.getElementById('body').value;
       state.review_decision.status = document.getElementById('decision').value;
       state.review_decision.notes = document.getElementById('notes').value;
       state.review_decision.updated_at = new Date().toISOString();
-      const response = await fetch('/api/review/save-as', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(state)
-      });
-      const payload = await response.json();
-      if (!response.ok || !payload.ok) {
-        alert(payload.error || (currentLang === 'ru' ? 'Сохранение review-файла не удалось' : 'Save as review file failed'));
-        return;
+      try {
+        const response = await apiFetch('/api/review/save-as', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(state)
+        });
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) {
+          alert(payload.error || (currentLang === 'ru' ? 'Сохранение review-файла не удалось' : 'Save as review file failed'));
+          return;
+        }
+        await loadSavedReviews();
+        await syncActiveLeadFromSavedReview();
+        focusNextUsefulLead('ready');
+        showFlash(currentLang === 'ru' ? `Сохранено как ${payload.filename}. Следующий шаг обновлён.` : `Saved as ${payload.filename}. Next step updated.`);
+      } finally {
+        setBusyAction('saveAsReviewFile', false);
       }
-      await loadSavedReviews();
-      await syncActiveLeadFromSavedReview();
-      const flash = document.getElementById('flash');
-      flash.textContent = currentLang === 'ru' ? `Сохранено в ${payload.path}` : `Saved to ${payload.path}`;
-      flash.style.display = 'block';
-      setTimeout(() => {
-        flash.style.display = 'none';
-        flash.textContent = currentLang === 'ru' ? 'Сохранено' : 'Saved';
-      }, 2200);
+    }
+
+    function initializeOperatorUi() {
+      ['targetContact', 'subject', 'body', 'notes', 'decision'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('input', trackEditorChanges);
+        el.addEventListener('change', trackEditorChanges);
+      });
+      const batchFilter = document.getElementById('batchFilter');
+      const persistedFilter = localStorage.getItem('leo_demo_batch_filter');
+      if (batchFilter && persistedFilter) {
+        batchFilter.value = persistedFilter;
+      }
+      batchFilter?.addEventListener('change', event => {
+        localStorage.setItem('leo_demo_batch_filter', event.target.value);
+      });
+      window.addEventListener('beforeunload', event => {
+        if (!hasUnsavedChanges()) return;
+        event.preventDefault();
+        event.returnValue = '';
+      });
+      document.addEventListener('keydown', event => {
+        const activeTag = document.activeElement?.tagName || '';
+        const editingField = ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeTag);
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+          event.preventDefault();
+          if (event.shiftKey) {
+            saveAsReviewFile();
+          } else {
+            saveReview();
+          }
+          return;
+        }
+        if (event.key.toLowerCase() === 'j') {
+          if (editingField) return;
+          event.preventDefault();
+          moveActiveLead(1);
+          return;
+        }
+        if (event.key.toLowerCase() === 'k') {
+          if (editingField) return;
+          event.preventDefault();
+          moveActiveLead(-1);
+          return;
+        }
+        if (editingField) return;
+        if (event.key === '1') setDecision('approved');
+        if (event.key === '2') setDecision('needs_review');
+        if (event.key === '3') setDecision('rejected');
+      });
     }
 
     async function initializePage() {
+      initializeOperatorUi();
       await loadReview();
       await loadSavedReviews();
       try {

@@ -5,8 +5,9 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=/opt/lead-enrichment-outreach
+EnvironmentFile=/etc/lead-enrichment-demo.env
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/usr/bin/python3 ui/review_server.py --demo --public --review-file examples/demo-review.json --demo-batch-file examples/demo-output.json --port 8095
+ExecStart=/usr/bin/python3 ui/review_server.py --demo --public --review-file examples/demo-review.json --demo-batch-file examples/demo-output.json --port 8095 --auth-token ${REVIEW_UI_AUTH_TOKEN}
 Restart=always
 RestartSec=2
 User=clawd

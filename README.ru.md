@@ -12,7 +12,7 @@ English version: [README.md](README.md)
 
 **company/domain -> dossier -> trust review -> draft -> human decision**
 
-Здесь уже есть локальный review UI и HTTP-слой. По умолчанию это demo/review продукт без авторизации и без реальной отправки писем.
+Здесь уже есть локальный review UI и HTTP-слой. Локально его можно гонять как single-operator demo, а для публичной демки теперь есть shared-token auth; реальной отправки писем всё ещё нет.
 
 Старые соседние проекты вроде `b2b-outreach-editor` и `startup-ai-outreach-copilot` считаются архивными и не должны восприниматься как основной код.
 
@@ -101,6 +101,7 @@ http://127.0.0.1:8095
 
 Что там есть:
 - demo-first hero и 90-second walkthrough
+- guided demo блок с подсказкой следующего presenter step
 - one-click переходы между `ready`, `review_required`, `blocked`
 - dossier компании с source-backed summary
 - trust verdict и причины
@@ -109,6 +110,13 @@ http://127.0.0.1:8095
 - явные human decision controls
 - presenter guide
 - batch-инструменты для загрузки CSV/JSON, экспорта ready leads и handoff bundle
+
+Рекомендуемый порядок:
+- нажать `Start 90-second demo`
+- при желании жать `Advance guided step`, чтобы UI сам вёл по сценарию
+- сначала показать `ready`
+- потом `review_required` и `blocked`
+- вернуться к approved handoff / export
 
 ### 4) Показать batch handoff
 

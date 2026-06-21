@@ -42,6 +42,7 @@ make demo-ui
 
 Open `http://127.0.0.1:8095` and point at:
 - the demo hero and `Start 90-second demo` button
+- the guided demo box and `Advance guided step`
 - the scenario jumps for `ready`, `review_required`, and `blocked`
 - dossier summary and source-backed evidence
 - trust verdict and warnings
@@ -53,10 +54,11 @@ The demo review file and demo batch are already loaded, so you can start in the 
 
 Recommended click path:
 1. `Start 90-second demo`
-2. show the ready lead and explain why it is safe to draft
-3. jump to `review_required` and explain the human gate
-4. jump to `blocked` and explain the refusal path
-5. return to export and show approved handoff
+2. `Advance guided step` if you want the UI to keep steering the presenter path
+3. show the ready lead and explain why it is safe to draft
+4. jump to `review_required` and explain the human gate
+5. jump to `blocked` and explain the refusal path
+6. return to export and show approved handoff
 
 ### 4. Close with batch handoff
 

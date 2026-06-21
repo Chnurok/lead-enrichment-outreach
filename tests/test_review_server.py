@@ -1,3 +1,5 @@
+import base64
+import http.client
 import io
 import json
 import tempfile
@@ -38,6 +40,12 @@ class ReviewServerTests(unittest.TestCase):
         with self.assertRaises(ApiError):
             validate_review_payload(payload)
 
+    def test_validate_review_payload_rejects_oversized_notes(self):
+        payload = self.sample_payload()
+        payload["review_decision"]["notes"] = "x" * 6001
+        with self.assertRaises(ApiError):
+            validate_review_payload(payload)
+
     def test_review_store_roundtrip(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "review.json"
@@ -47,6 +55,14 @@ class ReviewServerTests(unittest.TestCase):
             loaded = store.load()
         self.assertEqual(loaded["draft"]["subject"], "Hi")
         self.assertEqual(loaded["review_decision"]["status"], "needs_review")
+
+    def test_review_store_hides_absolute_path_on_missing_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "missing-review.json"
+            with self.assertRaises(ApiError) as ctx:
+                ReviewStore(path).load()
+        self.assertNotIn(str(path), str(ctx.exception))
+        self.assertIn("missing-review.json", str(ctx.exception))
 
     def test_build_demo_review_creates_file(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -535,8 +551,8 @@ class ReviewServerTests(unittest.TestCase):
                 with urllib.request.urlopen(f"{base}/healthz") as resp:
                     health = json.loads(resp.read().decode("utf-8"))
                 self.assertTrue(health["ok"])
-                self.assertEqual(health["review_file"], str(path))
-                self.assertEqual(health["demo_batch_file"], str(demo_batch_path))
+                self.assertEqual(health["review_file"], "review.json")
+                self.assertEqual(health["demo_batch_file"], "demo-output.json")
                 self.assertTrue(health["demo_batch_exists"])
                 self.assertEqual(health["demo_batch_summary"]["ready"], 1)
                 self.assertTrue(str(health["saved_reviews_dir"]).endswith("saved-reviews"))
@@ -640,8 +656,35 @@ class ReviewServerTests(unittest.TestCase):
                 with urllib.request.urlopen(f"{base}/") as resp:
                     html = resp.read().decode("utf-8")
                 self.assertIn("Start 90-second demo", html)
+                self.assertIn("Advance guided step", html)
                 self.assertIn("Ready scenario", html)
                 self.assertIn("Approved handoff", html)
+                self.assertIn("Open next pending approval", html)
+                self.assertIn("Jump to approved export", html)
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+    def test_http_serves_guided_demo_shell_copy_under_auth(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "review.json"
+            payload = self.sample_payload()
+            ReviewStore(path).save(payload)
+
+            server = ThreadedHTTPServer(("127.0.0.1", 0), Handler)
+            server.store = ReviewStore(path)
+            server.html_path = Path(__file__).resolve().parents[1] / "ui" / "index.html"
+            server.auth_token = "secret-token"
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                base = f"http://127.0.0.1:{server.server_address[1]}"
+                with urllib.request.urlopen(f"{base}/") as resp:
+                    html = resp.read().decode("utf-8")
+                self.assertIn("Guided demo is off", html)
+                self.assertIn("Start the 90-second demo", html)
+                self.assertIn("Advance guided step", html)
             finally:
                 server.shutdown()
                 server.server_close()
@@ -673,6 +716,7 @@ class ReviewServerTests(unittest.TestCase):
                     saved = json.loads(resp.read().decode("utf-8"))
                 self.assertTrue(saved["ok"])
                 self.assertTrue(saved_path.exists())
+                self.assertEqual(saved["filename"], saved_path.name)
             finally:
                 saved_path.unlink(missing_ok=True)
                 server.shutdown()
@@ -734,6 +778,35 @@ class ReviewServerTests(unittest.TestCase):
                     thread.join(timeout=2)
         finally:
             review_server.batch_workflow_csv.workflow.run_workflow = original
+
+    def test_http_batch_run_rejects_large_csv(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "review.json"
+            payload = self.sample_payload()
+            ReviewStore(path).save(payload)
+
+            server = ThreadedHTTPServer(("127.0.0.1", 0), Handler)
+            server.store = ReviewStore(path)
+            server.html_path = Path(__file__).resolve().parents[1] / "ui" / "index.html"
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                base = f"http://127.0.0.1:{server.server_address[1]}"
+                req = urllib.request.Request(
+                    f"{base}/api/batch/run",
+                    data=json.dumps({
+                        "csv_text": "company\n" + ("A" * (300 * 1024)),
+                    }).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with self.assertRaises(urllib.error.HTTPError) as ctx:
+                    urllib.request.urlopen(req)
+                self.assertEqual(ctx.exception.code, 413)
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
 
     def test_http_batch_export_ready_json_and_csv(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -903,9 +976,205 @@ class ReviewServerTests(unittest.TestCase):
                 self.assertEqual(saved_payload["count"], 2)
                 self.assertTrue(saved_path.exists())
                 self.assertTrue(deep_path.exists())
+                self.assertEqual(saved_payload["saved"][0]["filename"], saved_path.name)
             finally:
                 saved_path.unlink(missing_ok=True)
                 deep_path.unlink(missing_ok=True)
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+    def test_http_head_works_for_review_endpoint(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "review.json"
+            payload = self.sample_payload()
+            ReviewStore(path).save(payload)
+
+            server = ThreadedHTTPServer(("127.0.0.1", 0), Handler)
+            server.store = ReviewStore(path)
+            server.html_path = Path(__file__).resolve().parents[1] / "ui" / "index.html"
+            server.auth_token = ""
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                conn = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=5)
+                conn.request("HEAD", "/api/review")
+                resp = conn.getresponse()
+                body = resp.read()
+                self.assertEqual(resp.status, 200)
+                self.assertEqual(body, b"")
+                self.assertIsNotNone(resp.getheader("Content-Length"))
+            finally:
+                conn.close()
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+    def test_http_options_does_not_advertise_wildcard_cors(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "review.json"
+            payload = self.sample_payload()
+            ReviewStore(path).save(payload)
+
+            server = ThreadedHTTPServer(("127.0.0.1", 0), Handler)
+            server.store = ReviewStore(path)
+            server.html_path = Path(__file__).resolve().parents[1] / "ui" / "index.html"
+            server.auth_token = ""
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                req = urllib.request.Request(f"http://127.0.0.1:{server.server_address[1]}/api/review", method="OPTIONS")
+                with urllib.request.urlopen(req) as resp:
+                    self.assertEqual(resp.status, 204)
+                    self.assertIsNone(resp.headers.get("Access-Control-Allow-Origin"))
+                    self.assertEqual(resp.headers.get("Allow"), "GET, POST, HEAD, OPTIONS")
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+    def test_http_requires_token_when_configured(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "review.json"
+            payload = self.sample_payload()
+            ReviewStore(path).save(payload)
+
+            server = ThreadedHTTPServer(("127.0.0.1", 0), Handler)
+            server.store = ReviewStore(path)
+            server.html_path = Path(__file__).resolve().parents[1] / "ui" / "index.html"
+            server.auth_token = "secret-token"
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                base = f"http://127.0.0.1:{server.server_address[1]}"
+                with urllib.request.urlopen(f"{base}/") as resp:
+                    html = resp.read().decode("utf-8")
+                self.assertIn("Lead Enrichment Demo Console", html)
+
+                with self.assertRaises(urllib.error.HTTPError) as ctx:
+                    urllib.request.urlopen(f"{base}/api/review")
+                self.assertEqual(ctx.exception.code, 401)
+
+                req = urllib.request.Request(
+                    f"{base}/api/review",
+                    headers={"X-Review-Token": "secret-token"},
+                )
+                with urllib.request.urlopen(req) as resp:
+                    review = json.loads(resp.read().decode("utf-8"))
+                self.assertEqual(review["lead"]["company"], "Acme")
+
+                with self.assertRaises(urllib.error.HTTPError) as query_ctx:
+                    urllib.request.urlopen(f"{base}/api/review?token=secret-token")
+                self.assertEqual(query_ctx.exception.code, 401)
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+    def test_http_root_token_bootstrap_redirects_and_sets_cookie(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "review.json"
+            payload = self.sample_payload()
+            ReviewStore(path).save(payload)
+
+            server = ThreadedHTTPServer(("127.0.0.1", 0), Handler)
+            server.store = ReviewStore(path)
+            server.html_path = Path(__file__).resolve().parents[1] / "ui" / "index.html"
+            server.auth_token = "secret-token"
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                conn = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=5)
+                conn.request("GET", "/?token=secret-token")
+                resp = conn.getresponse()
+                body = resp.read()
+                self.assertEqual(resp.status, 303)
+                self.assertEqual(resp.getheader("Location"), "/")
+                self.assertIn("lead_review_demo_auth=secret-token", resp.getheader("Set-Cookie"))
+                self.assertEqual(body, b"")
+            finally:
+                conn.close()
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+    def test_http_cookie_auth_allows_api_access(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "review.json"
+            payload = self.sample_payload()
+            ReviewStore(path).save(payload)
+
+            server = ThreadedHTTPServer(("127.0.0.1", 0), Handler)
+            server.store = ReviewStore(path)
+            server.html_path = Path(__file__).resolve().parents[1] / "ui" / "index.html"
+            server.auth_token = "secret-token"
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                req = urllib.request.Request(
+                    f"http://127.0.0.1:{server.server_address[1]}/api/review",
+                    headers={"Cookie": "lead_review_demo_auth=secret-token"},
+                )
+                with urllib.request.urlopen(req) as resp:
+                    review = json.loads(resp.read().decode("utf-8"))
+                self.assertEqual(review["lead"]["company"], "Acme")
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+    def test_http_head_root_works_without_token_when_configured(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "review.json"
+            payload = self.sample_payload()
+            ReviewStore(path).save(payload)
+
+            server = ThreadedHTTPServer(("127.0.0.1", 0), Handler)
+            server.store = ReviewStore(path)
+            server.html_path = Path(__file__).resolve().parents[1] / "ui" / "index.html"
+            server.auth_token = "secret-token"
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                conn = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=5)
+                conn.request("HEAD", "/")
+                resp = conn.getresponse()
+                body = resp.read()
+                self.assertEqual(resp.status, 200)
+                self.assertEqual(body, b"")
+            finally:
+                conn.close()
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+    def test_http_saved_reviews_open_error_hides_absolute_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "review.json"
+            payload = self.sample_payload()
+            ReviewStore(path).save(payload)
+
+            server = ThreadedHTTPServer(("127.0.0.1", 0), Handler)
+            server.store = ReviewStore(path)
+            server.html_path = Path(__file__).resolve().parents[1] / "ui" / "index.html"
+            server.auth_token = ""
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                base = f"http://127.0.0.1:{server.server_address[1]}"
+                req = urllib.request.Request(
+                    f"{base}/api/saved-reviews/open",
+                    data=json.dumps({"filename": "does-not-exist.json"}).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with self.assertRaises(urllib.error.HTTPError) as ctx:
+                    urllib.request.urlopen(req)
+                body = json.loads(ctx.exception.read().decode("utf-8"))
+                self.assertEqual(ctx.exception.code, 404)
+                self.assertIn("does-not-exist.json", body["error"])
+                self.assertNotIn("/home/", body["error"])
+            finally:
                 server.shutdown()
                 server.server_close()
                 thread.join(timeout=2)
@@ -989,6 +1258,43 @@ class ReviewServerTests(unittest.TestCase):
                     import_payload = json.loads(resp.read().decode("utf-8"))
                 self.assertTrue(import_payload["ok"])
                 self.assertEqual(import_payload["imported"]["bundle_summary"]["approved_ready_count"], 1)
+            finally:
+                deep_path.unlink(missing_ok=True)
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+    def test_http_saved_reviews_approve_many_rejects_when_nothing_is_eligible(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "review.json"
+            payload = self.sample_payload()
+            ReviewStore(path).save(payload)
+
+            deep_payload = {
+                "lead": {"company": "DeepL", "domain": "deepl.com", "offer": "Offer"},
+                "dossier": {"company": "DeepL", "review": {"status": "review_required", "reasons": [], "next_step": "review", "top_contact_candidates": []}},
+                "draft": {"subject": "Hi", "body": "Body", "target_contact": "hi@deepl.com"},
+                "review_decision": {"status": "needs_review", "notes": "", "updated_at": "now"},
+            }
+            deep_path = build_saved_review_path(deep_payload)
+
+            server = ThreadedHTTPServer(("127.0.0.1", 0), Handler)
+            server.store = ReviewStore(path)
+            server.html_path = Path(__file__).resolve().parents[1] / "ui" / "index.html"
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                ReviewStore(deep_path).save(deep_payload)
+                base = f"http://127.0.0.1:{server.server_address[1]}"
+                approve_req = urllib.request.Request(
+                    f"{base}/api/saved-reviews/approve-many",
+                    data=json.dumps({"filenames": [deep_path.name]}).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with self.assertRaises(urllib.error.HTTPError) as ctx:
+                    urllib.request.urlopen(approve_req)
+                self.assertEqual(ctx.exception.code, 400)
             finally:
                 deep_path.unlink(missing_ok=True)
                 server.shutdown()
@@ -1082,6 +1388,61 @@ class ReviewServerTests(unittest.TestCase):
                 self.assertTrue(imported_payload["ok"])
                 self.assertEqual(imported_payload["imported"]["batch"]["results"][0]["input"]["company"], "DeepL")
                 self.assertEqual(imported_payload["imported"]["saved_reviews"][0]["filename"], "acme-review.json")
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+    def test_http_batch_import_bundle_zip_rejects_invalid_base64(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "review.json"
+            payload = self.sample_payload()
+            ReviewStore(path).save(payload)
+
+            server = ThreadedHTTPServer(("127.0.0.1", 0), Handler)
+            server.store = ReviewStore(path)
+            server.html_path = Path(__file__).resolve().parents[1] / "ui" / "index.html"
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                base = f"http://127.0.0.1:{server.server_address[1]}"
+                req = urllib.request.Request(
+                    f"{base}/api/batch/import-bundle-zip",
+                    data=json.dumps({"zip_base64": "%%%not-base64%%%"}).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with self.assertRaises(urllib.error.HTTPError) as ctx:
+                    urllib.request.urlopen(req)
+                self.assertEqual(ctx.exception.code, 400)
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+    def test_http_batch_import_bundle_zip_rejects_oversized_archive(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "review.json"
+            payload = self.sample_payload()
+            ReviewStore(path).save(payload)
+
+            server = ThreadedHTTPServer(("127.0.0.1", 0), Handler)
+            server.store = ReviewStore(path)
+            server.html_path = Path(__file__).resolve().parents[1] / "ui" / "index.html"
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                base = f"http://127.0.0.1:{server.server_address[1]}"
+                oversized = base64.b64encode(b"x" * (1024 * 1024 + 32)).decode("ascii")
+                req = urllib.request.Request(
+                    f"{base}/api/batch/import-bundle-zip",
+                    data=json.dumps({"zip_base64": oversized}).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with self.assertRaises(urllib.error.HTTPError) as ctx:
+                    urllib.request.urlopen(req)
+                self.assertEqual(ctx.exception.code, 413)
             finally:
                 server.shutdown()
                 server.server_close()

@@ -12,7 +12,7 @@ Reviewable AI-assisted B2B outreach workflow:
 
 **company/domain → dossier → trust review → draft → human decision**
 
-This repo now includes the local review UI/HTTP layer inside the main product. No auth, no real sending, fail-closed by default.
+This repo now includes the local review UI/HTTP layer inside the main product. The public demo path supports shared-token auth, there is still no real sending, and the workflow stays fail-closed by default.
 
 Older sibling projects such as `b2b-outreach-editor` and `startup-ai-outreach-copilot` are archived and should not be treated as the primary codebase.
 
@@ -101,6 +101,7 @@ http://127.0.0.1:8095
 
 What you should see:
 - a demo-first hero with a 90-second walkthrough path
+- a guided demo box that points at the next presenter move
 - one-click scenario jumps for `ready`, `review_required`, and `blocked`
 - a company dossier with source-backed summary
 - trust verdict and reasons
@@ -127,6 +128,7 @@ This seeds `examples/demo-review.json`, rebuilds `examples/demo-output.json`, an
 
 Recommended browser order:
 - click `Start 90-second demo`
+- use `Advance guided step` if you want the UI to keep steering the presenter path
 - show the `ready` lead first
 - jump to `review_required` and `blocked` to prove the safety rail
 - return to the ready lead and export the approved handoff bundle
@@ -291,7 +293,7 @@ python3 ui/review_server.py --seed-demo --review-file examples/demo-review.json
 Notes:
 - this is a local-only UI served on `127.0.0.1` by default
 - `make batch-demo` is intentionally deterministic and rebuilds `examples/demo-output.json` from curated demo fixtures, not from live web enrichment
-- there is no auth because v1 is intentionally single-operator/local
+- local demos can run without extra auth on `127.0.0.1`, while public demos now support shared-token auth
 - demo seeding currently uses the ready-path DeepL example, not the review-required Mistral example
 
 ## Review file format

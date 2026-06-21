@@ -1,7 +1,7 @@
 PYTHON ?= python3
 DEMO_OFFER ?= AI-assisted lead enrichment and outreach
 
-.PHONY: test demo demo-quick demo-story demo-artifacts demo-ready demo-review-required demo-blocked demo-refusal demo-ui demo-launch demo-launch-public demo-health demo-public-health ui workflow-demo batch-demo ready-export-demo
+.PHONY: test demo demo-quick demo-story demo-artifacts demo-ready demo-review-required demo-blocked demo-refusal demo-ui demo-launch demo-launch-public demo-health demo-public-health demo-smoke-local ui workflow-demo batch-demo ready-export-demo
 
 test:
 	$(PYTHON) -m unittest discover -s tests -q
@@ -59,7 +59,11 @@ demo-health:
 	curl -fsS http://127.0.0.1:8095/healthz
 
 demo-public-health:
-	curl -fsS http://127.0.0.1:8095/healthz
+	TOKEN=$$(sed -n 's/^REVIEW_UI_AUTH_TOKEN=//p' /etc/lead-enrichment-demo.env 2>/dev/null); \
+	curl -fsS -H "X-Review-Token: $$TOKEN" http://127.0.0.1:8095/healthz
+
+demo-smoke-local:
+	./deploy/smoke-demo.sh http://127.0.0.1:18095
 
 demo-ready:
 	@$(PYTHON) -c "import json, pathlib; artifact = json.loads(pathlib.Path('examples/demo/ready/deepl-dossier.json').read_text()); print('ready ::', artifact['company']); print('status ::', artifact['review']['status']); print('best_contact ::', artifact['best_contact_email']); print('next_step ::', artifact['review']['next_step'])"

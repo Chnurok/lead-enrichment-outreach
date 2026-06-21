@@ -24,6 +24,7 @@ On the server:
 ```bash
 make demo-public-health
 make batch-demo
+./deploy/smoke-demo.sh http://127.0.0.1:18095
 ```
 
 Expected result:
@@ -33,11 +34,13 @@ Expected result:
 
 ## What to expose
 
-Minimum useful URL:
+Minimum useful URL for the first open:
 
 ```text
-http://YOUR_HOST:8095/
+http://YOUR_HOST:8095/?token=YOUR_TOKEN
 ```
+
+After the first load, the server upgrades that token into an auth cookie and redirects the browser to a clean URL.
 
 Health URL:
 
@@ -47,7 +50,7 @@ http://YOUR_HOST:8095/healthz
 
 ## Minimal presenter flow
 
-1. Open `/` and click `Start 90-second demo`.
+1. Open `/?token=...` once and click `Start 90-second demo`.
 2. Show the `ready` lead first and explain why drafting is allowed.
 3. Jump to `review_required` and `blocked` to prove the safety rail.
 4. Return to the ready path and show the approved export / handoff flow.
@@ -56,7 +59,7 @@ http://YOUR_HOST:8095/healthz
 ## Notes
 
 - This is still a lightweight demo surface, not a hardened production deployment.
-- The server is local Python HTTP, no auth, no rate limiting, no reverse proxy by default.
+- The server is local Python HTTP with shared-token auth for public access, but still no rate limiting or reverse proxy by default.
 - Use only with sanitized demo artifacts.
 - If `/healthz` is up but `demo_batch_summary` is empty or stale, rerun `make batch-demo` and refresh the page.
 

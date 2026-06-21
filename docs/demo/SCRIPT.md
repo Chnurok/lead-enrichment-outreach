@@ -47,10 +47,11 @@ Say:
 
 Then click in this order:
 1. `Start 90-second demo`
-2. `Ready scenario`
-3. `Review-required scenario`
-4. `Blocked scenario`
-5. back to the ready lead and the approved export path
+2. `Advance guided step` if you want the UI to drive the presenter path
+3. `Ready scenario`
+4. `Review-required scenario`
+5. `Blocked scenario`
+6. back to the ready lead and the approved export path
 
 Say:
 

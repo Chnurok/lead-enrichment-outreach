@@ -7,15 +7,17 @@ import argparse
 import base64
 import csv
 import io
+import ipaddress
 import json
 import os
 import sys
 import threading
 import zipfile
+from http import cookies
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from socketserver import ThreadingMixIn
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS_DIR = ROOT / "skill" / "scripts"
@@ -29,6 +31,16 @@ DEFAULT_DEMO_OFFER = "AI-assisted lead enrichment and outreach"
 HOST = os.getenv("HOST", "127.0.0.1")
 PORT = int(os.getenv("PORT", "8095"))
 MAX_BODY_BYTES = int(os.getenv("MAX_BODY_BYTES", str(2 * 1024 * 1024)))
+AUTH_TOKEN = os.getenv("REVIEW_UI_AUTH_TOKEN", "").strip()
+AUTH_COOKIE_NAME = "lead_review_demo_auth"
+MAX_IMPORT_ARCHIVE_BYTES = int(os.getenv("MAX_IMPORT_ARCHIVE_BYTES", str(1024 * 1024)))
+MAX_IMPORT_ARCHIVE_TOTAL_BYTES = int(os.getenv("MAX_IMPORT_ARCHIVE_TOTAL_BYTES", str(2 * 1024 * 1024)))
+MAX_CSV_TEXT_BYTES = int(os.getenv("MAX_CSV_TEXT_BYTES", str(256 * 1024)))
+MAX_BATCH_ROWS = int(os.getenv("MAX_BATCH_ROWS", "250"))
+MAX_SUBJECT_CHARS = int(os.getenv("MAX_SUBJECT_CHARS", "200"))
+MAX_BODY_CHARS = int(os.getenv("MAX_BODY_CHARS", "20000"))
+MAX_NOTES_CHARS = int(os.getenv("MAX_NOTES_CHARS", "5000"))
+MAX_CONTACT_CHARS = int(os.getenv("MAX_CONTACT_CHARS", "320"))
 _LOCK = threading.Lock()
 
 if str(SCRIPTS_DIR) not in sys.path:
@@ -45,6 +57,75 @@ class ApiError(Exception):
         super().__init__(message)
         self.status = status
         self.message = message
+
+
+def display_path(path: Path) -> str:
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return path.name
+
+
+def build_security_headers(content_type: str) -> dict[str, str]:
+    headers = {
+        "X-Content-Type-Options": "nosniff",
+        "Referrer-Policy": "same-origin",
+        "X-Frame-Options": "DENY",
+        "Cache-Control": "no-store",
+    }
+    if content_type.startswith("text/html"):
+        headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "script-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data:; "
+            "connect-src 'self'; "
+            "base-uri 'self'; "
+            "form-action 'self'; "
+            "frame-ancestors 'none'"
+        )
+    return headers
+
+
+def require_string(value, field_name: str, *, allow_empty: bool = False, max_chars: int | None = None) -> str:
+    if not isinstance(value, str):
+        raise ApiError(400, f"{field_name} must be a string")
+    if not allow_empty and not value.strip():
+        raise ApiError(400, f"{field_name} must be a non-empty string")
+    if max_chars is not None and len(value) > max_chars:
+        raise ApiError(400, f"{field_name} exceeds limit of {max_chars} characters")
+    return value
+
+
+def decode_base64_zip(zip_base64: str) -> bytes:
+    require_string(zip_base64, "zip_base64")
+    try:
+        archive_bytes = base64.b64decode(zip_base64.encode("ascii"), validate=True)
+    except Exception as exc:
+        raise ApiError(400, "Invalid base64 zip payload") from exc
+    if len(archive_bytes) > MAX_IMPORT_ARCHIVE_BYTES:
+        raise ApiError(413, f"Zip payload exceeds limit of {MAX_IMPORT_ARCHIVE_BYTES} bytes")
+    return archive_bytes
+
+
+def read_json_entries_from_zip(archive_bytes: bytes, required_names: list[str]) -> dict[str, object]:
+    try:
+        with zipfile.ZipFile(io.BytesIO(archive_bytes), "r") as zf:
+            members = {info.filename: info for info in zf.infolist()}
+            total_uncompressed = sum(info.file_size for info in members.values())
+            if total_uncompressed > MAX_IMPORT_ARCHIVE_TOTAL_BYTES:
+                raise ApiError(413, f"Zip contents exceed limit of {MAX_IMPORT_ARCHIVE_TOTAL_BYTES} bytes")
+            loaded = {}
+            for name in required_names:
+                info = members.get(name)
+                if info is None:
+                    raise ApiError(400, f"Bundle missing required file: {name}")
+                loaded[name] = json.loads(zf.read(name).decode("utf-8"))
+            return loaded
+    except ApiError:
+        raise
+    except (OSError, json.JSONDecodeError, zipfile.BadZipFile) as exc:
+        raise ApiError(400, "Invalid bundle zip") from exc
 
 
 def configured_saved_reviews_dir() -> Path:
@@ -77,7 +158,7 @@ class ReviewStore:
 
     def load(self):
         if not self.path.exists():
-            raise ApiError(404, f"Review file not found: {self.path}")
+            raise ApiError(404, f"Review file not found: {display_path(self.path)}")
         with self.path.open(encoding="utf-8") as fh:
             data = json.load(fh)
         validate_review_payload(data)
@@ -114,7 +195,6 @@ def list_saved_reviews():
             continue
         items.append({
             "filename": path.name,
-            "path": str(path),
             "company": ((payload.get("lead") or {}).get("company")) or "Unknown company",
             "domain": ((payload.get("lead") or {}).get("domain")) or "n/a",
             "review_status": (((payload.get("dossier") or {}).get("review") or {}).get("status")) or "unknown",
@@ -143,7 +223,7 @@ def save_review_payloads(review_payloads):
         ReviewStore(output_path).save(payload)
         saved.append({
             "company": ((payload.get("lead") or {}).get("company")) or "Unknown company",
-            "path": str(output_path),
+            "filename": output_path.name,
         })
     return saved
 
@@ -168,6 +248,8 @@ def approve_ready_saved_reviews(filenames):
             "company": ((payload.get("lead") or {}).get("company")) or "Unknown company",
             "filename": output_path.name,
         })
+    if not approved:
+        raise ApiError(400, "No ready saved reviews were eligible for approval")
     return approved
 
 
@@ -247,22 +329,14 @@ def build_approved_bundle_zip_base64(batch_artifact, saved_reviews=None):
 
 
 def load_approved_bundle_zip_base64(zip_base64: str):
-    if not isinstance(zip_base64, str) or not zip_base64.strip():
-        raise ApiError(400, "zip_base64 must be a non-empty string")
-    try:
-        archive_bytes = base64.b64decode(zip_base64.encode("ascii"))
-    except Exception as exc:
-        raise ApiError(400, "Invalid base64 zip payload") from exc
-
-    try:
-        with zipfile.ZipFile(io.BytesIO(archive_bytes), "r") as zf:
-            approved_export = json.loads(zf.read("approved-ready-leads.json").decode("utf-8"))
-            saved_reviews = json.loads(zf.read("approved-saved-reviews.json").decode("utf-8"))
-            summary = json.loads(zf.read("approved-bundle-summary.json").decode("utf-8"))
-    except KeyError as exc:
-        raise ApiError(400, f"Approved bundle missing required file: {exc}") from exc
-    except (OSError, json.JSONDecodeError, zipfile.BadZipFile) as exc:
-        raise ApiError(400, "Invalid approved bundle zip") from exc
+    archive_bytes = decode_base64_zip(zip_base64)
+    loaded = read_json_entries_from_zip(
+        archive_bytes,
+        ["approved-ready-leads.json", "approved-saved-reviews.json", "approved-bundle-summary.json"],
+    )
+    approved_export = loaded["approved-ready-leads.json"]
+    saved_reviews = loaded["approved-saved-reviews.json"]
+    summary = loaded["approved-bundle-summary.json"]
 
     batch_results = []
     for item in approved_export.get("items") or []:
@@ -324,8 +398,9 @@ def load_approved_bundle_zip_base64(zip_base64: str):
 
 
 def run_batch_from_csv_text(csv_text: str, offer=None, query_mode="smart", allow_review_required=False):
-    if not isinstance(csv_text, str) or not csv_text.strip():
-        raise ApiError(400, "csv_text must be a non-empty string")
+    require_string(csv_text, "csv_text")
+    if len(csv_text.encode("utf-8")) > MAX_CSV_TEXT_BYTES:
+        raise ApiError(413, f"csv_text exceeds limit of {MAX_CSV_TEXT_BYTES} bytes")
 
     reader = csv.DictReader(io.StringIO(csv_text))
     if not reader.fieldnames or "company" not in reader.fieldnames:
@@ -334,6 +409,8 @@ def run_batch_from_csv_text(csv_text: str, offer=None, query_mode="smart", allow
     rows = list(reader)
     if not rows:
         raise ApiError(400, "CSV must include at least one data row")
+    if len(rows) > MAX_BATCH_ROWS:
+        raise ApiError(400, f"CSV exceeds row limit of {MAX_BATCH_ROWS}")
 
     results = [
         batch_workflow_csv.workflow.run_workflow(
@@ -451,22 +528,14 @@ def build_handoff_bundle_zip_base64(batch_artifact, saved_reviews=None):
 
 
 def load_handoff_bundle_zip_base64(zip_base64: str):
-    if not isinstance(zip_base64, str) or not zip_base64.strip():
-        raise ApiError(400, "zip_base64 must be a non-empty string")
-    try:
-        archive_bytes = base64.b64decode(zip_base64.encode("ascii"))
-    except Exception as exc:
-        raise ApiError(400, "Invalid base64 zip payload") from exc
-
-    try:
-        with zipfile.ZipFile(io.BytesIO(archive_bytes), "r") as zf:
-            ready_export = json.loads(zf.read("ready-leads.json").decode("utf-8"))
-            saved_reviews = json.loads(zf.read("saved-reviews.json").decode("utf-8"))
-            summary = json.loads(zf.read("bundle-summary.json").decode("utf-8"))
-    except KeyError as exc:
-        raise ApiError(400, f"Bundle missing required file: {exc}") from exc
-    except (OSError, json.JSONDecodeError, zipfile.BadZipFile) as exc:
-        raise ApiError(400, "Invalid handoff bundle zip") from exc
+    archive_bytes = decode_base64_zip(zip_base64)
+    loaded = read_json_entries_from_zip(
+        archive_bytes,
+        ["ready-leads.json", "saved-reviews.json", "bundle-summary.json"],
+    )
+    ready_export = loaded["ready-leads.json"]
+    saved_reviews = loaded["saved-reviews.json"]
+    summary = loaded["bundle-summary.json"]
 
     batch_results = []
     for item in ready_export.get("items") or []:
@@ -540,9 +609,10 @@ def validate_review_payload(data):
         raise ApiError(400, "Review payload must include review_decision object")
 
     draft = data["draft"]
-    for field in ("subject", "body"):
-        if not isinstance(draft.get(field), str) or not draft[field].strip():
-            raise ApiError(400, f"Draft field '{field}' must be a non-empty string")
+    require_string(draft.get("subject"), "draft.subject", max_chars=MAX_SUBJECT_CHARS)
+    require_string(draft.get("body"), "draft.body", max_chars=MAX_BODY_CHARS)
+    if "target_contact" in draft and draft.get("target_contact") is not None:
+        require_string(draft.get("target_contact"), "draft.target_contact", allow_empty=True, max_chars=MAX_CONTACT_CHARS)
 
     dossier = data["dossier"]
     review = dossier.get("review")
@@ -553,8 +623,9 @@ def validate_review_payload(data):
     status = decision.get("status")
     if status not in {"approved", "rejected", "needs_review"}:
         raise ApiError(400, "review_decision.status must be approved, rejected, or needs_review")
-    if not isinstance(decision.get("updated_at"), str) or not decision["updated_at"].strip():
-        raise ApiError(400, "review_decision.updated_at must be a non-empty string")
+    require_string(decision.get("updated_at"), "review_decision.updated_at")
+    if "notes" in decision and decision.get("notes") is not None:
+        require_string(decision.get("notes"), "review_decision.notes", allow_empty=True, max_chars=MAX_NOTES_CHARS)
     if status == "approved" and review.get("status") != "ready":
         raise ApiError(400, "Cannot mark review approved unless dossier.review.status is ready")
 
@@ -590,30 +661,120 @@ class Handler(BaseHTTPRequestHandler):
                 batch_summary = {"error": "demo batch unreadable"}
         return {
             "ok": True,
-            "review_file": str(self.store.path),
-            "demo_batch_file": str(demo_batch_path),
+            "review_file": display_path(self.store.path),
+            "demo_batch_file": display_path(demo_batch_path),
             "demo_batch_exists": batch_exists,
             "demo_batch_summary": batch_summary,
-            "saved_reviews_dir": str(saved_reviews_dir()),
+            "saved_reviews_dir": display_path(saved_reviews_dir()),
             "saved_reviews_count": len(list_saved_reviews()),
         }
 
-    def _send_json(self, code, payload):
+    def _is_local_request(self) -> bool:
+        host = self.client_address[0]
+        try:
+            return ipaddress.ip_address(host).is_loopback
+        except ValueError:
+            return host in {"localhost"}
+
+    def _auth_required(self) -> bool:
+        return bool(getattr(self.server, "auth_token", "")) or not self._is_local_request()
+
+    def _query_params(self):
+        return parse_qs(urlparse(self.path).query or "", keep_blank_values=False)
+
+    def _cookies(self):
+        raw = self.headers.get("Cookie", "")
+        jar = cookies.SimpleCookie()
+        if raw:
+            jar.load(raw)
+        return jar
+
+    def _cookie_token(self) -> str:
+        morsel = self._cookies().get(AUTH_COOKIE_NAME)
+        return morsel.value.strip() if morsel else ""
+
+    def _request_token(self) -> str:
+        header_token = self.headers.get("X-Review-Token", "").strip()
+        if header_token:
+            return header_token
+        auth_header = self.headers.get("Authorization", "").strip()
+        if auth_header.startswith("Bearer "):
+            return auth_header[7:].strip()
+        cookie_token = self._cookie_token()
+        if cookie_token:
+            return cookie_token
+        return ""
+
+    def _ensure_authorized(self):
+        if not self._auth_required():
+            return
+        expected = getattr(self.server, "auth_token", "")
+        if not expected:
+            raise ApiError(503, "Server auth token is not configured")
+        provided = self._request_token()
+        if provided != expected:
+            raise ApiError(401, "Unauthorized")
+
+    def _send_json(self, code, payload, head_only=False, extra_headers=None):
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(code)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Access-Control-Allow-Origin", "*")
+        content_type = "application/json; charset=utf-8"
+        self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
+        for key, value in build_security_headers(content_type).items():
+            self.send_header(key, value)
+        for key, value in (extra_headers or {}).items():
+            self.send_header(key, value)
         self.end_headers()
-        self.wfile.write(body)
+        if not head_only:
+            self.wfile.write(body)
 
-    def _send_text(self, code, text, content_type="text/plain; charset=utf-8"):
+    def _send_text(self, code, text, content_type="text/plain; charset=utf-8", head_only=False, extra_headers=None):
         body = text.encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
+        for key, value in build_security_headers(content_type).items():
+            self.send_header(key, value)
+        for key, value in (extra_headers or {}).items():
+            self.send_header(key, value)
         self.end_headers()
-        self.wfile.write(body)
+        if not head_only:
+            self.wfile.write(body)
+
+    def _send_redirect(self, location: str, extra_headers=None):
+        self.send_response(303)
+        self.send_header("Location", location)
+        self.send_header("Content-Length", "0")
+        for key, value in build_security_headers("text/html; charset=utf-8").items():
+            self.send_header(key, value)
+        for key, value in (extra_headers or {}).items():
+            self.send_header(key, value)
+        self.end_headers()
+
+    def _build_auth_cookie(self, token: str) -> str:
+        cookie = cookies.SimpleCookie()
+        cookie[AUTH_COOKIE_NAME] = token
+        cookie[AUTH_COOKIE_NAME]["path"] = "/"
+        cookie[AUTH_COOKIE_NAME]["httponly"] = True
+        cookie[AUTH_COOKIE_NAME]["samesite"] = "Strict"
+        if not self._is_local_request():
+            cookie[AUTH_COOKIE_NAME]["secure"] = True
+        return cookie.output(header="").strip()
+
+    def _maybe_bootstrap_browser_session(self, parsed) -> bool:
+        if parsed.path not in {"/", "/index.html"}:
+            return False
+        expected = getattr(self.server, "auth_token", "")
+        if not expected:
+            return False
+        query_token = (self._query_params().get("token") or [""])[0].strip()
+        header_token = self.headers.get("X-Review-Token", "").strip()
+        bootstrap_token = query_token or header_token
+        if bootstrap_token and bootstrap_token == expected:
+            self._send_redirect("/", extra_headers={"Set-Cookie": self._build_auth_cookie(expected)})
+            return True
+        return False
 
     def _read_json(self):
         try:
@@ -637,46 +798,57 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(500, {"ok": False, "error": str(exc)})
 
     def do_OPTIONS(self):
-        self.send_response(200)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_response(204)
+        self.send_header("Allow", "GET, POST, HEAD, OPTIONS")
+        self.send_header("Content-Length", "0")
+        for key, value in build_security_headers("text/plain; charset=utf-8").items():
+            self.send_header(key, value)
         self.end_headers()
 
-    def do_GET(self):
+    def _handle_get(self, *, head_only=False):
         try:
             parsed = urlparse(self.path)
-            if parsed.path == "/favicon.ico":
-                self._send_text(204, "", "image/x-icon")
+            if self._maybe_bootstrap_browser_session(parsed):
                 return
+            if parsed.path == "/favicon.ico":
+                self._send_text(204, "", "image/x-icon", head_only=head_only)
+                return
+            if parsed.path in {"/", "/index.html"}:
+                self._send_text(200, self.html_path.read_text(encoding="utf-8"), "text/html; charset=utf-8", head_only=head_only)
+                return
+            self._ensure_authorized()
             if parsed.path in {"/health", "/healthz"}:
-                self._send_json(200, self.build_health_payload())
+                self._send_json(200, self.build_health_payload(), head_only=head_only)
                 return
             if parsed.path == "/api/review":
                 with _LOCK:
                     data = self.store.load()
-                self._send_json(200, data)
+                self._send_json(200, data, head_only=head_only)
                 return
             if parsed.path == "/api/demo-batch":
                 demo_batch_path = self.demo_batch_path
                 if not demo_batch_path.exists():
-                    raise ApiError(404, f"Demo batch file not found: {demo_batch_path}")
+                    raise ApiError(404, f"Demo batch file not found: {display_path(demo_batch_path)}")
                 with demo_batch_path.open(encoding="utf-8") as fh:
                     data = json.load(fh)
-                self._send_json(200, data)
+                self._send_json(200, data, head_only=head_only)
                 return
             if parsed.path == "/api/saved-reviews":
-                self._send_json(200, {"ok": True, "items": list_saved_reviews()})
+                self._send_json(200, {"ok": True, "items": list_saved_reviews()}, head_only=head_only)
                 return
-            if parsed.path in {"/", "/index.html"}:
-                self._send_text(200, self.html_path.read_text(encoding="utf-8"), "text/html; charset=utf-8")
-                return
-            self._send_json(404, {"ok": False, "error": "Not found"})
+            self._send_json(404, {"ok": False, "error": "Not found"}, head_only=head_only)
         except Exception as exc:
             self._handle_error(exc)
 
+    def do_GET(self):
+        self._handle_get(head_only=False)
+
+    def do_HEAD(self):
+        self._handle_get(head_only=True)
+
     def do_POST(self):
         try:
+            self._ensure_authorized()
             parsed = urlparse(self.path)
             if parsed.path == "/api/review":
                 data = self._read_json()
@@ -690,7 +862,7 @@ class Handler(BaseHTTPRequestHandler):
                 output_path = build_saved_review_path(data)
                 with _LOCK:
                     saved = ReviewStore(output_path).save(data)
-                self._send_json(200, {"ok": True, "review": saved, "path": str(output_path)})
+                self._send_json(200, {"ok": True, "review": saved, "filename": output_path.name})
                 return
             if parsed.path == "/api/batch/run":
                 data = self._read_json()
@@ -909,11 +1081,15 @@ def main():
     parser.add_argument("--public", action="store_true", help="Bind to 0.0.0.0 for simple demo hosting")
     parser.add_argument("--demo-offer", default=DEFAULT_DEMO_OFFER, help="Offer used when rebuilding the demo batch artifact")
     parser.add_argument("--build-demo-batch-only", action="store_true", help="Build the deterministic demo batch artifact, print it, and exit")
+    parser.add_argument("--auth-token", default=AUTH_TOKEN, help="Shared token required for non-local access")
     args = parser.parse_args()
 
     review_path = Path(args.review_file).resolve()
     batch_path = Path(args.demo_batch_file).resolve()
     host = "0.0.0.0" if args.public else args.host
+    auth_token = (args.auth_token or "").strip()
+    if host not in {"127.0.0.1", "::1", "localhost"} and not auth_token:
+        parser.error("--auth-token or REVIEW_UI_AUTH_TOKEN is required for non-local binding")
     if args.build_demo_batch_only:
         artifact = build_demo_batch(
             batch_path,
@@ -934,8 +1110,11 @@ def main():
     server.store = ReviewStore(review_path)
     server.html_path = DEFAULT_HTML_PATH
     server.demo_batch_path = batch_path
+    server.auth_token = auth_token
     print(f"Review UI running on http://{host}:{args.port} using {review_path}")
     print(f"Demo batch path: {batch_path}")
+    if auth_token:
+        print("Review UI auth: token required via ?token=... or X-Review-Token header")
     server.serve_forever()
 
 
