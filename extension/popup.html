@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Lead Recovery Copilot</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="app">
+      <section class="hero">
+        <div class="eyebrow-row">
+          <div class="eyebrow">Lead Recovery Copilot</div>
+          <div id="backendStatus" class="pill">Backend: checking…</div>
+        </div>
+        <h1>Recover the best reachable contact path</h1>
+        <p id="contextLine" class="muted hero-copy">Reading current tab…</p>
+      </section>
+
+      <section class="hero-metrics">
+        <div id="usageHint" class="metric-tile">
+          <span class="metric-label">Recent recoveries</span>
+          <span id="usageCount" class="metric-value">0</span>
+        </div>
+        <div id="pageTypeTile" class="metric-tile subtle">
+          <span class="metric-label">Page type</span>
+          <span id="pageTypeValue" class="metric-value">page</span>
+        </div>
+      </section>
+
+      <section class="controls">
+        <label class="field">
+          <span>Company override</span>
+          <input id="companyInput" type="text" placeholder="Optional">
+        </label>
+        <div class="button-row controls-row">
+          <button id="recoverButton" class="primary strong">Recover contact</button>
+          <button id="optionsButton" class="secondary">Settings</button>
+        </div>
+      </section>
+
+      <section id="statusBox" class="status muted">Ready.</section>
+
+      <section id="resultBox" class="result hidden">
+        <div class="result-head">
+          <div class="result-title">
+            <h2 id="companyName">—</h2>
+            <p id="resultSubline" class="meta">No lead recovered yet.</p>
+          </div>
+          <span id="reviewBadge" class="badge">—</span>
+        </div>
+        <p id="summaryText" class="summary"></p>
+
+        <div class="grid review-grid">
+          <div class="card">
+            <div class="label label-strong">Next step</div>
+            <div id="nextStepValue" class="value">—</div>
+            <div id="reviewReasonMeta" class="meta"></div>
+          </div>
+          <div class="card">
+            <div class="label label-strong">Detected context</div>
+            <div id="contextDomainValue" class="value">—</div>
+            <div id="contextMeta" class="meta"></div>
+          </div>
+        </div>
+
+        <div class="signal-strip">
+          <div class="signal-chip">
+            <span class="signal-label">Entity</span>
+            <span id="entityConfidenceValue" class="signal-value">n/a</span>
+          </div>
+          <div class="signal-chip">
+            <span class="signal-label">Contact</span>
+            <span id="contactConfidenceValue" class="signal-value">n/a</span>
+          </div>
+          <div class="signal-chip">
+            <span class="signal-label">Official site</span>
+            <span id="siteConfidenceValue" class="signal-value">n/a</span>
+          </div>
+        </div>
+
+        <div class="grid">
+          <div class="card accent-card">
+            <div class="label label-strong">Best contact path</div>
+            <div id="bestContactValue" class="value">—</div>
+            <div id="bestContactMeta" class="meta"></div>
+            <div class="button-row">
+              <button id="copyBestButton" class="ghost">Copy</button>
+              <button id="openBestButton" class="ghost">Open</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="label label-strong">Primary site</div>
+            <div id="domainValue" class="value">—</div>
+            <div id="confidenceMeta" class="meta"></div>
+            <div class="button-row">
+              <button id="openSiteButton" class="ghost">Open site</button>
+              <button id="copySummaryButton" class="ghost">Copy summary</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="list-block">
+          <div class="block-head">
+            <div class="label label-strong">All contact paths</div>
+            <div id="contactsCount" class="block-meta">0 found</div>
+          </div>
+          <ul id="contactsList" class="list"></ul>
+        </div>
+
+        <div class="list-block">
+          <div class="block-head">
+            <div class="label label-strong">Warnings</div>
+            <div id="warningsCount" class="block-meta">0</div>
+          </div>
+          <ul id="warningsList" class="list"></ul>
+        </div>
+
+        <div id="draftBlock" class="list-block hidden">
+          <div class="block-head">
+            <div class="label label-strong">Draft opener</div>
+            <div class="block-meta">Outreach-ready</div>
+          </div>
+          <div class="draft-stack">
+            <div>
+              <div class="label">Subject</div>
+              <div id="draftSubjectValue" class="draft-copy">—</div>
+            </div>
+            <div>
+              <div class="label">Body</div>
+              <div id="draftBodyValue" class="draft-copy multiline">—</div>
+            </div>
+          </div>
+          <div class="button-row">
+            <button id="copyDraftSubjectButton" class="ghost">Copy subject</button>
+            <button id="copyDraftBodyButton" class="ghost">Copy body</button>
+          </div>
+        </div>
+
+        <div class="list-block">
+          <div class="block-head">
+            <div class="label label-strong">Recent recoveries</div>
+            <div class="block-meta">Local history</div>
+          </div>
+          <ul id="recentList" class="list"></ul>
+        </div>
+      </section>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+  </html>

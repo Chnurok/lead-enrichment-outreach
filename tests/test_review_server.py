@@ -10,7 +10,7 @@ import urllib.request
 from pathlib import Path
 from unittest import mock
 
-from ui.review_server import ApiError, ReviewStore, approve_ready_saved_reviews, bootstrap_demo_artifacts, build_approved_bundle, build_approved_bundle_zip_base64, build_approved_export, build_demo_batch, build_demo_review, build_handoff_bundle, build_handoff_bundle_zip_base64, build_saved_review_path, export_ready_batch, export_ready_batch_csv_text, generate_missing_ready_drafts, list_saved_reviews, load_approved_bundle_zip_base64, load_handoff_bundle_zip_base64, load_saved_review, run_batch_from_csv_text, save_review_payloads, validate_review_payload, ThreadedHTTPServer, Handler
+from ui.review_server import ApiError, ReviewStore, approve_ready_saved_reviews, bootstrap_demo_artifacts, build_approved_bundle, build_approved_bundle_zip_base64, build_approved_export, build_demo_batch, build_demo_review, build_extension_result, build_handoff_bundle, build_handoff_bundle_zip_base64, build_saved_review_path, export_ready_batch, export_ready_batch_csv_text, generate_missing_ready_drafts, infer_company_from_extension_payload, infer_domain_from_extension_payload, list_saved_reviews, load_approved_bundle_zip_base64, load_handoff_bundle_zip_base64, load_saved_review, run_batch_from_csv_text, run_extension_enrichment, save_review_payloads, validate_review_payload, ThreadedHTTPServer, Handler
 
 
 class ReviewServerTests(unittest.TestCase):
@@ -223,6 +223,171 @@ class ReviewServerTests(unittest.TestCase):
     def test_run_batch_from_csv_text_rejects_missing_company_column(self):
         with self.assertRaises(ApiError):
             run_batch_from_csv_text("name,domain\nAcme,acme.com\n")
+
+    def test_infer_domain_from_extension_payload_ignores_directory_hosts(self):
+        self.assertIsNone(infer_domain_from_extension_payload({
+            "page_context": {
+                "url": "https://2gis.ru/volgograd/firm/123",
+                "title": "Acme",
+            }
+        }))
+
+    def test_infer_company_from_extension_payload_falls_back_to_title(self):
+        company = infer_company_from_extension_payload({
+            "page_context": {
+                "url": "https://2gis.ru/volgograd/firm/123",
+                "title": "ООО Стройфонд",
+            }
+        })
+        self.assertEqual(company, "ООО Стройфонд")
+
+    def test_build_extension_result_shapes_popup_payload(self):
+        artifact = {
+            "input": {"company": "Acme"},
+            "artifacts": {
+                "dossier": {
+                    "company": "Acme",
+                    "primary_domain": None,
+                    "summary": "Acme summary",
+                    "emails": ["hello@acme.test"],
+                    "phones": ["+7 000 000-00-00"],
+                    "contact_pages": ["https://acme.test/contact"],
+                    "social_links": [],
+                    "warnings": ["directory-derived contact"],
+                    "confidence": 0.44,
+                    "entity_confidence": 0.55,
+                    "contact_confidence": 0.42,
+                    "official_site_confidence": 0.0,
+                    "review": {
+                        "status": "review_required",
+                        "ready_for_outreach": False,
+                        "reasons": ["weak official site"],
+                        "next_step": "manual check",
+                        "top_contact_candidates": [],
+                    },
+                    "contact_candidates": [
+                        {"value": "hello@acme.test", "contact_type": "email", "trust_class": "business_linked", "confidence": 0.42}
+                    ],
+                },
+                "draft": None,
+            },
+        }
+        shaped = build_extension_result(artifact, {"page_context": {"url": "https://2gis.ru/x", "title": "Acme"}})
+        self.assertEqual(shaped["company"], "Acme")
+        self.assertEqual(shaped["best_contact"]["value"], "hello@acme.test")
+        self.assertEqual(shaped["review"]["status"], "review_required")
+        self.assertEqual(shaped["detected_context"]["inferred_domain"], None)
+        self.assertEqual(shaped["detected_context"]["page_type"], None)
+
+    def test_build_extension_result_falls_back_to_best_contact_email(self):
+        artifact = {
+            "input": {"company": "Acme"},
+            "artifacts": {
+                "dossier": {
+                    "company": "Acme",
+                    "primary_domain": "acme.test",
+                    "summary": "Acme summary",
+                    "best_contact_email": "owner@acme.test",
+                    "emails": ["owner@acme.test"],
+                    "phones": [],
+                    "contact_pages": [],
+                    "social_links": [],
+                    "warnings": [],
+                    "confidence": 0.8,
+                    "entity_confidence": 0.8,
+                    "contact_confidence": 0.8,
+                    "official_site_confidence": 0.9,
+                    "review": {
+                        "status": "ready",
+                        "ready_for_outreach": True,
+                        "reasons": [],
+                        "next_step": "draft outreach",
+                        "top_contact_candidates": [],
+                    },
+                    "contact_candidates": [],
+                },
+                "draft": {"subject": "Hi", "body": "Body"},
+            },
+        }
+        shaped = build_extension_result(artifact, {
+            "domain": "acme.test",
+            "page_context": {
+                "url": "https://acme.test",
+                "title": "Acme",
+                "page_type": "company_website",
+            },
+        })
+        self.assertEqual(shaped["best_contact"]["value"], "owner@acme.test")
+        self.assertEqual(shaped["detected_context"]["provided_domain"], "acme.test")
+        self.assertEqual(shaped["detected_context"]["inferred_domain"], "acme.test")
+        self.assertEqual(shaped["draft"]["subject"], "Hi")
+
+    def test_run_extension_enrichment_uses_fast_mode_defaults(self):
+        import ui.review_server as review_server
+
+        original = review_server.workflow.run_workflow
+        calls = []
+
+        def fake_run_workflow(company, domain=None, offer=None, region=None, query_mode="smart", allow_review_required=False, fast_mode=False):
+            calls.append({
+                "company": company,
+                "domain": domain,
+                "offer": offer,
+                "region": region,
+                "query_mode": query_mode,
+                "allow_review_required": allow_review_required,
+                "fast_mode": fast_mode,
+            })
+            return {
+                "input": {"company": company, "domain": domain},
+                "artifacts": {
+                    "dossier": {
+                        "company": company,
+                        "primary_domain": domain,
+                        "summary": "Acme summary",
+                        "emails": [],
+                        "phones": [],
+                        "contact_pages": [],
+                        "social_links": [],
+                        "warnings": [],
+                        "confidence": 0.5,
+                        "entity_confidence": 0.5,
+                        "contact_confidence": 0.4,
+                        "official_site_confidence": 0.0,
+                        "review": {"status": "review_required", "reasons": [], "next_step": "check", "top_contact_candidates": []},
+                        "contact_candidates": [],
+                    },
+                    "draft": None,
+                },
+            }
+
+        review_server.workflow.run_workflow = fake_run_workflow
+        try:
+            result = run_extension_enrichment({
+                "page_context": {
+                    "url": "https://2gis.ru/volgograd/firm/123",
+                    "title": "ООО Стройфонд",
+                }
+            })
+        finally:
+            review_server.workflow.run_workflow = original
+
+        self.assertEqual(calls[0]["company"], "ООО Стройфонд")
+        self.assertIsNone(calls[0]["domain"])
+        self.assertTrue(calls[0]["allow_review_required"])
+        self.assertTrue(calls[0]["fast_mode"])
+        self.assertEqual(result["result"]["company"], "ООО Стройфонд")
+
+    def test_run_extension_enrichment_rejects_invalid_query_mode(self):
+        with self.assertRaises(ApiError) as ctx:
+            run_extension_enrichment({
+                "query_mode": "turbo",
+                "page_context": {
+                    "url": "https://example.com",
+                    "title": "Acme",
+                },
+            })
+        self.assertIn("query_mode must be basic or smart", str(ctx.exception))
 
     def test_export_ready_batch_shapes_ops_artifact(self):
         export = export_ready_batch({
@@ -639,6 +804,101 @@ class ReviewServerTests(unittest.TestCase):
                 server.shutdown()
                 server.server_close()
                 thread.join(timeout=2)
+
+    def test_http_serves_teaser_and_asset(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "review.json"
+            payload = self.sample_payload()
+            ReviewStore(path).save(payload)
+
+            server = ThreadedHTTPServer(("127.0.0.1", 0), Handler)
+            server.store = ReviewStore(path)
+            server.html_path = Path(__file__).resolve().parents[1] / "ui" / "index.html"
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                base = f"http://127.0.0.1:{server.server_address[1]}"
+                with urllib.request.urlopen(f"{base}/teaser") as resp:
+                    teaser_html = resp.read().decode("utf-8")
+                    teaser_type = resp.headers.get_content_type()
+                with urllib.request.urlopen(f"{base}/assets/lead-recovery-copilot-popup-mockup.png") as resp:
+                    image_bytes = resp.read(16)
+                    image_type = resp.headers.get_content_type()
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+        self.assertEqual(teaser_type, "text/html")
+        self.assertIn("Превращает «грязный» лид в понятный контактный путь", teaser_html)
+        self.assertEqual(image_type, "image/png")
+        self.assertTrue(image_bytes.startswith(b"\x89PNG"))
+
+    def test_http_extension_enrich_returns_popup_payload(self):
+        import ui.review_server as review_server
+
+        original = review_server.workflow.run_workflow
+
+        def fake_run_workflow(company, domain=None, offer=None, region=None, query_mode="smart", allow_review_required=False, fast_mode=False):
+            return {
+                "input": {"company": company, "domain": domain},
+                "artifacts": {
+                    "dossier": {
+                        "company": company,
+                        "primary_domain": domain,
+                        "summary": "Acme summary",
+                        "best_contact_email": "hello@acme.test",
+                        "emails": ["hello@acme.test"],
+                        "phones": [],
+                        "contact_pages": [],
+                        "social_links": [],
+                        "warnings": [],
+                        "confidence": 0.66,
+                        "entity_confidence": 0.7,
+                        "contact_confidence": 0.6,
+                        "official_site_confidence": 0.3,
+                        "review": {"status": "ready", "ready_for_outreach": True, "reasons": [], "next_step": "draft", "top_contact_candidates": []},
+                        "contact_candidates": [{"value": "hello@acme.test", "contact_type": "email", "trust_class": "official", "confidence": 0.6}],
+                    },
+                    "draft": None,
+                },
+            }
+
+        review_server.workflow.run_workflow = fake_run_workflow
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp) / "review.json"
+                ReviewStore(path).save(self.sample_payload())
+                server = ThreadedHTTPServer(("127.0.0.1", 0), Handler)
+                server.store = ReviewStore(path)
+                server.html_path = Path(__file__).resolve().parents[1] / "ui" / "index.html"
+                thread = threading.Thread(target=server.serve_forever, daemon=True)
+                thread.start()
+                try:
+                    base = f"http://127.0.0.1:{server.server_address[1]}"
+                    req = urllib.request.Request(
+                        f"{base}/api/extension/enrich",
+                        data=json.dumps({
+                            "page_context": {
+                                "url": "https://example.com",
+                                "title": "Acme",
+                            }
+                        }).encode("utf-8"),
+                        headers={"Content-Type": "application/json"},
+                        method="POST",
+                    )
+                    with urllib.request.urlopen(req) as resp:
+                        payload = json.loads(resp.read().decode("utf-8"))
+                finally:
+                    server.shutdown()
+                    server.server_close()
+                    thread.join(timeout=2)
+        finally:
+            review_server.workflow.run_workflow = original
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["result"]["company"], "Acme")
+        self.assertEqual(payload["result"]["best_contact_email"], "hello@acme.test")
 
     def test_http_serves_demo_first_ui_copy(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1090,8 +1350,78 @@ class ReviewServerTests(unittest.TestCase):
                 body = resp.read()
                 self.assertEqual(resp.status, 303)
                 self.assertEqual(resp.getheader("Location"), "/")
-                self.assertIn("lead_review_demo_auth=secret-token", resp.getheader("Set-Cookie"))
+                set_cookie = resp.getheader("Set-Cookie")
+                self.assertIn("lead_review_demo_auth=secret-token", set_cookie)
+                self.assertIn("HttpOnly", set_cookie)
+                self.assertIn("SameSite=Strict", set_cookie)
+                self.assertEqual(resp.getheader("Cache-Control"), "no-store")
+                self.assertEqual(resp.getheader("X-Frame-Options"), "DENY")
                 self.assertEqual(body, b"")
+            finally:
+                conn.close()
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+    def test_http_root_and_api_include_security_headers(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "review.json"
+            payload = self.sample_payload()
+            ReviewStore(path).save(payload)
+
+            server = ThreadedHTTPServer(("127.0.0.1", 0), Handler)
+            server.store = ReviewStore(path)
+            server.html_path = Path(__file__).resolve().parents[1] / "ui" / "index.html"
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                base = f"http://127.0.0.1:{server.server_address[1]}"
+                with urllib.request.urlopen(f"{base}/") as resp:
+                    self.assertEqual(resp.getheader("X-Content-Type-Options"), "nosniff")
+                    self.assertEqual(resp.getheader("Referrer-Policy"), "same-origin")
+                    self.assertEqual(resp.getheader("X-Frame-Options"), "DENY")
+                    self.assertEqual(resp.getheader("Cache-Control"), "no-store")
+                    self.assertIn("default-src 'self'", resp.getheader("Content-Security-Policy"))
+
+                with urllib.request.urlopen(f"{base}/healthz") as resp:
+                    self.assertEqual(resp.getheader("X-Content-Type-Options"), "nosniff")
+                    self.assertEqual(resp.getheader("Referrer-Policy"), "same-origin")
+                    self.assertEqual(resp.getheader("X-Frame-Options"), "DENY")
+                    self.assertEqual(resp.getheader("Cache-Control"), "no-store")
+                    self.assertIsNone(resp.getheader("Content-Security-Policy"))
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+    def test_http_head_and_options_keep_hardening_headers(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "review.json"
+            payload = self.sample_payload()
+            ReviewStore(path).save(payload)
+
+            server = ThreadedHTTPServer(("127.0.0.1", 0), Handler)
+            server.store = ReviewStore(path)
+            server.html_path = Path(__file__).resolve().parents[1] / "ui" / "index.html"
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                conn = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=5)
+                conn.request("HEAD", "/healthz")
+                head_resp = conn.getresponse()
+                self.assertEqual(head_resp.status, 200)
+                self.assertEqual(head_resp.getheader("X-Content-Type-Options"), "nosniff")
+                self.assertEqual(head_resp.getheader("Cache-Control"), "no-store")
+                self.assertEqual(head_resp.read(), b"")
+                conn.close()
+
+                conn = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=5)
+                conn.request("OPTIONS", "/api/review")
+                options_resp = conn.getresponse()
+                self.assertEqual(options_resp.status, 204)
+                self.assertEqual(options_resp.getheader("Allow"), "GET, POST, HEAD, OPTIONS")
+                self.assertEqual(options_resp.getheader("X-Content-Type-Options"), "nosniff")
+                self.assertEqual(options_resp.read(), b"")
             finally:
                 conn.close()
                 server.shutdown()

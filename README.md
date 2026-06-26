@@ -44,6 +44,7 @@ Presenter docs:
 - lead enrichment into dossier JSON
 - trust gating with `ready` / `review_required` / `blocked`
 - restrained draft generation
+- Chrome MV3 extension scaffold for single-lead contact recovery
 - local review UI for:
   - dossier summary
   - review status, reasons, warnings, sources
@@ -62,6 +63,36 @@ python3 -m unittest discover -s tests -q
 ```
 
 If tests pass, the repo is runnable locally.
+
+## Browser extension
+
+There is now a loadable unpacked MV3 extension in [`extension/`](extension/README.md).
+
+Fastest path:
+
+```bash
+make demo-ui
+```
+
+Then:
+
+1. open `chrome://extensions`
+2. enable `Developer mode`
+3. `Load unpacked`
+4. select `extension/`
+
+The extension talks to the local review server through:
+
+- `POST /api/extension/enrich`
+
+Default backend:
+
+- `http://127.0.0.1:8095`
+
+Canonical packaging note:
+
+- treat `extension/` as the source of truth
+- treat `extension.zip` as an optional derived artifact, not as the editable extension source
 
 ## What to do in the first 3 minutes
 

@@ -23,6 +23,7 @@ TOOLS.md
 USER.md
 
 *.json
+!extension/*.json
 !examples/*.json
 !examples/**/*.json
 !examples/*.csv

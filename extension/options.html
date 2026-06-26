@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Lead Recovery Copilot Settings</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="app">
+      <section class="hero">
+        <div class="eyebrow">Settings</div>
+        <h1>Backend connection</h1>
+        <p class="muted">Point the extension at your local or hosted review server.</p>
+      </section>
+      <section class="controls">
+        <label class="field">
+          <span>Backend base URL</span>
+          <input id="backendBaseUrl" type="url" placeholder="http://127.0.0.1:8095">
+        </label>
+        <label class="field">
+          <span>Review token</span>
+          <input id="reviewToken" type="password" placeholder="Optional">
+        </label>
+        <div class="button-row">
+          <button id="saveButton" class="primary">Save settings</button>
+          <button id="testButton" class="secondary">Test backend</button>
+        </div>
+      </section>
+      <section class="list-block compact-block">
+        <div class="block-head">
+          <div class="label label-strong">Recommended local flow</div>
+          <div class="block-meta">Demo-first</div>
+        </div>
+        <ul class="list">
+          <li>Run <code>make demo-ui</code> in the repo.</li>
+          <li>Keep backend URL on <code>http://127.0.0.1:8095</code> unless you intentionally host it elsewhere.</li>
+          <li>If demo auth is enabled, paste the same <code>REVIEW_UI_AUTH_TOKEN</code> here.</li>
+        </ul>
+      </section>
+      <section id="statusBox" class="status muted">Ready.</section>
+    </main>
+    <script src="options.js"></script>
+  </body>
+</html>

@@ -71,6 +71,22 @@ This is the payoff for ops:
 - rebuild the bundled demo batch from curated fixtures
 - export only `ready` leads for downstream work
 
+## Optional extension pass
+
+If you want to show the browser-native operator surface instead of only the review UI:
+
+1. keep `make demo-ui` running
+2. load unpacked `extension/` in Chromium
+3. open a company-like page
+4. run `Recover contact`
+
+What to point at:
+- backend health badge
+- detected page type/context
+- best contact path
+- next step and review reasons
+- draft opener when the backend returns one
+
 ## Demo artifacts
 
 ```bash
