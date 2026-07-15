@@ -246,6 +246,16 @@ button.ghost {
   color: var(--block);
 }
 
+.list {
+  display: grid;
+  gap: 8px;
+  padding-left: 18px;
+}
+
+.list li {
+  line-height: 1.4;
+}
+
 .grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -319,6 +329,17 @@ button.ghost {
 .block-meta {
   font-size: 12px;
   color: var(--muted);
+}
+
+.block-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+button.compact {
+  padding: 6px 10px;
+  font-size: 12px;
 }
 
 .list {

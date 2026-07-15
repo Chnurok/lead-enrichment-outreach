@@ -16,6 +16,10 @@ This repo now includes the local review UI/HTTP layer inside the main product. T
 
 Older sibling projects such as `b2b-outreach-editor` and `startup-ai-outreach-copilot` are archived and should not be treated as the primary codebase.
 
+Competitive framing:
+- `docs/competitive-benchmark-2026-06.md` - where this project currently stands against Clay / Apollo / ZoomInfo / Instantly, and which product qualities matter most
+- `docs/TZ-2026-07-15-lead-recovery-copilot-ship-slice.md` - current ship slice, acceptance criteria, and required verification loop
+
 ## Demo first
 
 If you want the shortest path to "show me the product", use this order:
@@ -59,10 +63,10 @@ Presenter docs:
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python3 -m unittest discover -s tests -q
+make verify
 ```
 
-If tests pass, the repo is runnable locally.
+If `make verify` passes, the repo is in a shippable verified state for the current slice.
 
 ## Browser extension
 

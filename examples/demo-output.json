@@ -5,13 +5,24 @@
     "source_csv": "examples/demo/index.json",
     "offer": "AI-assisted lead enrichment and outreach",
     "query_mode": "demo",
-    "allow_review_required": false
+    "allow_review_required": false,
+    "fast_mode": false
   },
   "summary": {
     "ready": 1,
     "review_required": 1,
     "blocked": 1,
     "draft_generated": 1,
+    "verified_contact_leads": 1,
+    "official_email_leads": 1,
+    "memory_reused_leads": 0,
+    "source_backed_summary_leads": 3,
+    "useful_contact_leads": 1,
+    "high_usability_contact_leads": 1,
+    "low_usability_primary_contact_leads": 0,
+    "average_confidence": 0.47,
+    "average_entity_confidence": 0.27,
+    "average_contact_confidence": 0.24,
     "total": 3
   },
   "results": [
@@ -21,7 +32,8 @@
       "input": {
         "company": "DeepL",
         "domain": "deepl.com",
-        "offer": "AI-assisted lead enrichment and outreach"
+        "offer": "AI-assisted lead enrichment and outreach",
+        "fast_mode": false
       },
       "result": {
         "status": "ready",
@@ -73,6 +85,48 @@
           ],
           "snippets": [],
           "confidence": 0.7,
+          "entity_confidence": 0.82,
+          "contact_confidence": 0.72,
+          "official_site_confidence": 0.86,
+          "evidence_summary": {
+            "verified_contact_count": 1,
+            "memory_reused_contact_count": 0,
+            "useful_contact_count": 2,
+            "high_usability_contact_count": 1,
+            "official_site_confidence": 0.86
+          },
+          "contact_candidates": [
+            {
+              "value": "support@deepl.com",
+              "contact_type": "email",
+              "trust_class": "official",
+              "official": true,
+              "confidence": 0.72,
+              "outreach_usability": "high",
+              "is_primary": true,
+              "source_records": [
+                {
+                  "source_url": "https://www.deepl.com/contact",
+                  "source_type": "page"
+                }
+              ]
+            },
+            {
+              "value": "https://www.deepl.com/contact",
+              "contact_type": "contact_page",
+              "trust_class": "official",
+              "official": true,
+              "confidence": 0.58,
+              "outreach_usability": "medium",
+              "is_primary": false,
+              "source_records": [
+                {
+                  "source_url": "https://www.deepl.com/contact",
+                  "source_type": "page"
+                }
+              ]
+            }
+          ],
           "trust_signals": {
             "has_domain": true,
             "has_summary": true,
@@ -167,7 +221,8 @@
       "input": {
         "company": "Mistral AI",
         "domain": "mistral.ai",
-        "offer": "AI-assisted lead enrichment and outreach"
+        "offer": "AI-assisted lead enrichment and outreach",
+        "fast_mode": false
       },
       "result": {
         "status": "review_required",
@@ -353,7 +408,8 @@
       "input": {
         "company": "Unknown Co",
         "domain": null,
-        "offer": "AI-assisted lead enrichment and outreach"
+        "offer": "AI-assisted lead enrichment and outreach",
+        "fast_mode": false
       },
       "result": {
         "status": "blocked",

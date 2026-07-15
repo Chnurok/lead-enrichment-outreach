@@ -39,13 +39,13 @@
         </div>
       </section>
 
-      <section id="statusBox" class="status muted">Ready.</section>
+      <section id="statusBox" class="status muted">Ready to recover.</section>
 
       <section id="resultBox" class="result hidden">
         <div class="result-head">
           <div class="result-title">
             <h2 id="companyName">—</h2>
-            <p id="resultSubline" class="meta">No lead recovered yet.</p>
+            <p id="resultSubline" class="meta">No contact path recovered yet.</p>
           </div>
           <span id="reviewBadge" class="badge">—</span>
         </div>
@@ -81,7 +81,7 @@
 
         <div class="grid">
           <div class="card accent-card">
-            <div class="label label-strong">Best contact path</div>
+            <div class="label label-strong">Best verified path</div>
             <div id="bestContactValue" class="value">—</div>
             <div id="bestContactMeta" class="meta"></div>
             <div class="button-row">
@@ -89,6 +89,17 @@
               <button id="openBestButton" class="ghost">Open</button>
             </div>
           </div>
+          <div class="card">
+            <div class="label label-strong">Best verified email</div>
+            <div id="bestEmailValue" class="value">—</div>
+            <div id="bestEmailMeta" class="meta"></div>
+            <div class="button-row">
+              <button id="copyBestEmailButton" class="ghost">Copy email</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid">
           <div class="card">
             <div class="label label-strong">Primary site</div>
             <div id="domainValue" class="value">—</div>
@@ -102,10 +113,29 @@
 
         <div class="list-block">
           <div class="block-head">
-            <div class="label label-strong">All contact paths</div>
-            <div id="contactsCount" class="block-meta">0 found</div>
+            <div class="label label-strong">Verified contacts</div>
+            <div id="verifiedCount" class="block-meta">0</div>
           </div>
-          <ul id="contactsList" class="list"></ul>
+          <ul id="verifiedList" class="list"></ul>
+        </div>
+
+        <div class="list-block">
+          <div class="block-head">
+            <div class="label label-strong">Unverified candidates</div>
+            <div class="block-actions">
+              <div id="contactsCount" class="block-meta">0</div>
+              <button id="toggleCandidatesButton" class="ghost compact">Show candidates</button>
+            </div>
+          </div>
+          <ul id="contactsList" class="list hidden"></ul>
+        </div>
+
+        <div class="list-block">
+          <div class="block-head">
+            <div class="label label-strong">Rejected noise</div>
+            <div id="rejectedCount" class="block-meta">0</div>
+          </div>
+          <ul id="rejectedList" class="list"></ul>
         </div>
 
         <div class="list-block">

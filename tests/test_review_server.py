@@ -188,7 +188,7 @@ class ReviewServerTests(unittest.TestCase):
         original = review_server.batch_workflow_csv.workflow.run_workflow
         calls = []
 
-        def fake_run_workflow(company, domain=None, offer=None, region=None, query_mode="smart", allow_review_required=False):
+        def fake_run_workflow(company, domain=None, offer=None, region=None, query_mode="smart", allow_review_required=False, fast_mode=False):
             calls.append({
                 "company": company,
                 "domain": domain,
@@ -196,6 +196,7 @@ class ReviewServerTests(unittest.TestCase):
                 "region": region,
                 "query_mode": query_mode,
                 "allow_review_required": allow_review_required,
+                "fast_mode": fast_mode,
             })
             return {
                 "input": {"company": company, "domain": domain, "offer": offer},
@@ -219,6 +220,7 @@ class ReviewServerTests(unittest.TestCase):
         self.assertEqual(calls[0]["company"], "Acme")
         self.assertEqual(calls[0]["query_mode"], "basic")
         self.assertTrue(calls[0]["allow_review_required"])
+        self.assertFalse(calls[0]["fast_mode"])
 
     def test_run_batch_from_csv_text_rejects_missing_company_column(self):
         with self.assertRaises(ApiError):
@@ -278,6 +280,7 @@ class ReviewServerTests(unittest.TestCase):
         self.assertEqual(shaped["review"]["status"], "review_required")
         self.assertEqual(shaped["detected_context"]["inferred_domain"], None)
         self.assertEqual(shaped["detected_context"]["page_type"], None)
+        self.assertEqual(shaped["unverified_candidates"][0]["verification_status"], "unverified")
 
     def test_build_extension_result_falls_back_to_best_contact_email(self):
         artifact = {
@@ -318,9 +321,106 @@ class ReviewServerTests(unittest.TestCase):
             },
         })
         self.assertEqual(shaped["best_contact"]["value"], "owner@acme.test")
+        self.assertEqual(shaped["best_verified_email"]["value"], "owner@acme.test")
         self.assertEqual(shaped["detected_context"]["provided_domain"], "acme.test")
         self.assertEqual(shaped["detected_context"]["inferred_domain"], "acme.test")
         self.assertEqual(shaped["draft"]["subject"], "Hi")
+        self.assertEqual(shaped["verified_contacts"][0]["verification_status"], "verified")
+
+    def test_build_extension_result_hides_weak_social_as_best_contact(self):
+        artifact = {
+            "input": {"company": "Acme"},
+            "artifacts": {
+                "dossier": {
+                    "company": "Acme",
+                    "primary_domain": "acme.test",
+                    "summary": "Acme summary",
+                    "best_contact_email": None,
+                    "emails": [],
+                    "phones": [],
+                    "contact_pages": [],
+                    "social_links": ["https://instagram.com/acme"],
+                    "warnings": ["No official-domain outreach email found"],
+                    "confidence": 0.33,
+                    "entity_confidence": 0.41,
+                    "contact_confidence": 0.2,
+                    "official_site_confidence": 0.0,
+                    "review": {
+                        "status": "review_required",
+                        "ready_for_outreach": False,
+                        "reasons": ["Only business-linked contact paths were found"],
+                        "next_step": "review manually",
+                        "top_contact_candidates": [],
+                    },
+                    "contact_candidates": [
+                        {
+                            "value": "https://instagram.com/acme",
+                            "contact_type": "social",
+                            "trust_class": "business_linked",
+                            "confidence": 0.2,
+                        }
+                    ],
+                },
+                "draft": None,
+            },
+        }
+        shaped = build_extension_result(artifact, {"page_context": {"url": "https://acme.test", "title": "Acme"}})
+        self.assertIsNone(shaped["best_contact"]["value"])
+        self.assertEqual(shaped["review"]["status"], "review_required")
+        self.assertEqual(shaped["rejected_noise"][0]["verification_status"], "rejected")
+
+    def test_build_extension_result_dedupes_www_contact_paths(self):
+        artifact = {
+            "input": {"company": "DeepL"},
+            "artifacts": {
+                "dossier": {
+                    "company": "DeepL",
+                    "primary_domain": "deepl.com",
+                    "summary": "DeepL summary",
+                    "best_contact_email": None,
+                    "emails": [],
+                    "phones": [],
+                    "contact_pages": [],
+                    "social_links": [],
+                    "warnings": [],
+                    "confidence": 0.7,
+                    "entity_confidence": 0.8,
+                    "contact_confidence": 0.5,
+                    "official_site_confidence": 2.2,
+                    "review": {
+                        "status": "review_required",
+                        "ready_for_outreach": False,
+                        "reasons": [],
+                        "next_step": "review manually",
+                        "top_contact_candidates": [],
+                    },
+                    "contact_candidates": [
+                        {
+                            "value": "https://deepl.com/contact-us",
+                            "contact_type": "contact_page",
+                            "trust_class": "official",
+                            "confidence": 0.6,
+                            "official": True,
+                            "primary_domain_match": True,
+                            "source_records": [{"source_type": "page", "source_url": "https://deepl.com/contact-us"}],
+                        },
+                        {
+                            "value": "https://www.deepl.com/contact-us/",
+                            "contact_type": "contact_page",
+                            "trust_class": "official",
+                            "confidence": 0.59,
+                            "official": True,
+                            "primary_domain_match": True,
+                            "source_records": [{"source_type": "page", "source_url": "https://www.deepl.com/contact-us/"}],
+                        },
+                    ],
+                },
+                "draft": None,
+            },
+        }
+        shaped = build_extension_result(artifact, {"page_context": {"url": "https://deepl.com", "title": "DeepL"}})
+        self.assertEqual(len(shaped["verified_contacts"]), 1)
+        self.assertEqual(shaped["best_verified_path"]["value"], "https://deepl.com/contact-us")
 
     def test_run_extension_enrichment_uses_fast_mode_defaults(self):
         import ui.review_server as review_server
@@ -988,7 +1088,7 @@ class ReviewServerTests(unittest.TestCase):
 
         original = review_server.batch_workflow_csv.workflow.run_workflow
 
-        def fake_run_workflow(company, domain=None, offer=None, region=None, query_mode="smart", allow_review_required=False):
+        def fake_run_workflow(company, domain=None, offer=None, region=None, query_mode="smart", allow_review_required=False, fast_mode=False):
             return {
                 "input": {"company": company, "domain": domain, "offer": offer},
                 "result": {"status": "ready", "draft_generated": True},

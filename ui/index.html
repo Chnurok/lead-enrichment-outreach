@@ -198,6 +198,11 @@
     .ops-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
     .ops-box { background: #f8fafc; border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
     .ops-box strong { display: block; font-size: 22px; margin-bottom: 4px; }
+    .benchmark-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+    .benchmark-box { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 12px; }
+    .benchmark-box strong { display: block; font-size: 16px; margin-bottom: 4px; }
+    .benchmark-box small { color: var(--muted); display: block; line-height: 1.45; }
+    .benchmark-box .mini-chip { margin-top: 10px; }
     .batch-list { display: grid; gap: 10px; margin-top: 12px; }
     .batch-item { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: #fff; }
     .batch-item.active { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(44, 107, 237, 0.12); }
@@ -614,6 +619,13 @@
         </section>
 
         <section class="card">
+          <h2 id="benchmarkTitle" class="section-title">Competitive benchmark</h2>
+          <p id="benchmarkLead" class="section-lead">This scorecard tracks the product qualities strong enrichment tools usually surface: trust, coverage, explainability, and operator handoff.</p>
+          <div id="benchmarkSummary" class="hint-box">Load a batch to see how this build compares on core workflow qualities, not just raw lead count.</div>
+          <div id="benchmarkGrid" class="benchmark-grid"></div>
+        </section>
+
+        <section class="card">
           <h2 id="savedReviewsTitle" class="section-title">Saved operator reviews</h2>
           <p id="savedReviewsLead" class="section-lead">These files are the durable checkpoint between review and export.</p>
           <div id="savedReviewsEmpty" class="muted empty-state">No saved review files yet. Save at least one reviewed ready lead to create exportable approval state.</div>
@@ -707,6 +719,7 @@
     let batchState = null;
     let activeBatchIndex = null;
     let savedReviewsState = [];
+    let benchmarkState = null;
     let bundleSummaryState = null;
     let currentLang = localStorage.getItem('leo_demo_lang') || 'en';
     let busyAction = null;
@@ -1125,6 +1138,8 @@
         exportHandoffBundleBtn: 'Export full handoff bundle',
         coverageTitle: 'Coverage dashboard',
         coverageLead: 'Use these shortcuts to close the most common gaps before final export.',
+        benchmarkTitle: 'Competitive benchmark',
+        benchmarkLead: 'This scorecard tracks the product qualities strong enrichment tools usually surface: trust, coverage, explainability, and operator handoff.',
         resolveLabel: 'Resolve missing work',
         openNextReadyBtn: 'Open next ready lead without draft',
         generateDraftsBtn: 'Generate drafts for ready leads',
@@ -1204,6 +1219,8 @@
         exportHandoffBundleBtn: 'Экспорт полного bundle для handoff',
         coverageTitle: 'Панель покрытия',
         coverageLead: 'Эти шорткаты закрывают самые частые пробелы перед финальным экспортом.',
+        benchmarkTitle: 'Сравнение с аналогами',
+        benchmarkLead: 'Эта панель показывает качества, которые сильные enrichment-инструменты обычно выносят на первый план: trust, coverage, explainability и operator handoff.',
         resolveLabel: 'Закрыть недостающую работу',
         openNextReadyBtn: 'Открыть следующий готовый лид без черновика',
         generateDraftsBtn: 'Сгенерировать черновики для готовых лидов',
@@ -1997,6 +2014,113 @@
       renderDemoChecklist();
     }
 
+    function computeBenchmarkState() {
+      const results = extractBatchResults(batchState);
+      const ready = results.filter(item => getBatchStatus(item) === 'ready');
+      const reviewRequired = results.filter(item => getBatchStatus(item) === 'review_required');
+      const blocked = results.filter(item => getBatchStatus(item) === 'blocked');
+      const readyWithDraft = ready.filter(item => getBatchDraftState(item));
+      const savedLookup = getSavedReviewLookup();
+      const approvedSavedCompanies = new Set(
+        savedReviewsState
+          .filter(item => item.review_status === 'ready' && item.decision_status === 'approved')
+          .map(item => String(item.company || '').toLowerCase())
+      );
+      const readyWithSaved = ready.filter(item => savedLookup.has(getBatchCompany(item).toLowerCase()));
+      const readyApproved = ready.filter(item => approvedSavedCompanies.has(getBatchCompany(item).toLowerCase()));
+
+      const dossier = state?.dossier || {};
+      const verifiedContacts = Array.isArray(dossier.verified_contacts) ? dossier.verified_contacts.length : 0;
+      const hasExplainableReview = Boolean((dossier.review_reason || '').trim()) || Boolean((dossier.review?.reasons || []).length);
+      const hasNextStep = Boolean((dossier.review?.next_step || '').trim());
+      const hasSourceBackedSummary = Boolean(dossier.summary) && Boolean(dossier.summary_source?.source_type || dossier.summary_source?.source_url);
+
+      const total = results.length;
+      const qualityScore = total
+        ? Math.round(
+            (
+              (ready.length / total) * 20 +
+              (reviewRequired.length / total) * 10 +
+              (blocked.length / total) * 10 +
+              (ready.length ? (readyWithDraft.length / ready.length) * 20 : 10) +
+              (ready.length ? (readyWithSaved.length / ready.length) * 15 : 10) +
+              (ready.length ? (readyApproved.length / ready.length) * 15 : 10)
+            )
+          )
+        : 0;
+
+      const cards = [
+        {
+          title: currentLang === 'ru' ? 'Trust gate' : 'Trust gate',
+          value: total ? `${ready.length}/${reviewRequired.length}/${blocked.length}` : 'n/a',
+          body: currentLang === 'ru'
+            ? 'Есть явное разделение ready / review_required / blocked вместо слепого “всем черновик”.'
+            : 'The workflow exposes explicit ready / review_required / blocked outcomes instead of blindly drafting every lead.',
+          badge: total && blocked.length > 0 && reviewRequired.length > 0 ? (currentLang === 'ru' ? 'Сильнее большинства sequencer-first инструментов' : 'Stronger than most sequencer-first tools') : (currentLang === 'ru' ? 'Нужно больше сценариев' : 'Needs broader scenario coverage'),
+          tone: total && blocked.length > 0 && reviewRequired.length > 0 ? 'ok' : 'warn',
+        },
+        {
+          title: currentLang === 'ru' ? 'Operator handoff' : 'Operator handoff',
+          value: ready.length ? `${Math.round((readyApproved.length / ready.length) * 100)}%` : '0%',
+          body: currentLang === 'ru'
+            ? 'Считает не только найденные лиды, но и сколько из ready реально дошло до approval-ready handoff.'
+            : 'Measures not just leads found, but how many ready leads actually made it to approved handoff.',
+          badge: ready.length && readyApproved.length === ready.length ? (currentLang === 'ru' ? 'На уровне ops-focused аналогов' : 'On par with ops-focused competitors') : (currentLang === 'ru' ? 'Главная зона роста' : 'Main growth gap'),
+          tone: ready.length && readyApproved.length === ready.length ? 'ok' : 'warn',
+        },
+        {
+          title: currentLang === 'ru' ? 'Explainability' : 'Explainability',
+          value: hasExplainableReview && hasNextStep ? (currentLang === 'ru' ? 'Да' : 'Yes') : (currentLang === 'ru' ? 'Частично' : 'Partial'),
+          body: currentLang === 'ru'
+            ? 'Показывает review reasons, next step и source-backed summary, чего часто не хватает black-box базам.'
+            : 'Shows review reasons, next step, and a source-backed summary, which many black-box databases hide.',
+          badge: hasExplainableReview && hasNextStep && hasSourceBackedSummary ? (currentLang === 'ru' ? 'Сильный дифференциатор' : 'Strong differentiator') : (currentLang === 'ru' ? 'Дожать source coverage' : 'Improve source coverage'),
+          tone: hasExplainableReview && hasNextStep && hasSourceBackedSummary ? 'ok' : 'warn',
+        },
+        {
+          title: currentLang === 'ru' ? 'Verification quality' : 'Verification quality',
+          value: verifiedContacts ? String(verifiedContacts) : '0',
+          body: currentLang === 'ru'
+            ? 'Сильные аналоги продают verified data и freshness. Здесь важно растить именно verified-contact coverage, а не шумный scrape volume.'
+            : 'Strong competitors sell verified data and freshness. This product should keep growing verified-contact coverage, not noisy scrape volume.',
+          badge: verifiedContacts > 0 ? (currentLang === 'ru' ? 'Есть подтверждённый сигнал' : 'Verified signal present') : (currentLang === 'ru' ? 'Главный конкурентный разрыв' : 'Biggest competitive gap'),
+          tone: verifiedContacts > 0 ? 'ok' : 'bad',
+        },
+      ];
+
+      return {
+        qualityScore,
+        readyCount: ready.length,
+        reviewRequiredCount: reviewRequired.length,
+        blockedCount: blocked.length,
+        cards,
+      };
+    }
+
+    function renderBenchmarkDashboard() {
+      const summary = document.getElementById('benchmarkSummary');
+      const grid = document.getElementById('benchmarkGrid');
+      if (!batchState) {
+        benchmarkState = null;
+        summary.textContent = currentLang === 'ru'
+          ? 'Загрузи пакет, чтобы увидеть сравнение по ключевым качествам workflow, а не только по числу лидов.'
+          : 'Load a batch to compare core workflow qualities, not just raw lead count.';
+        grid.innerHTML = '';
+        return;
+      }
+      benchmarkState = computeBenchmarkState();
+      summary.innerHTML = currentLang === 'ru'
+        ? `<strong>Текущий product score:</strong> ${esc(benchmarkState.qualityScore)}/100. Лучшие аналоги обычно сильны в verified data, automation и measurement. Здесь мы уже сильны в trust gating и explainability, а главный ростовой разрыв остаётся в verified-contact coverage и полном operator handoff.`
+        : `<strong>Current product score:</strong> ${esc(benchmarkState.qualityScore)}/100. Strong competitors usually win on verified data, automation, and measurement. This build is already strong on trust gating and explainability, while the biggest gap remains verified-contact coverage and fully completed operator handoff.`;
+      grid.innerHTML = benchmarkState.cards.map(card => `
+        <div class="benchmark-box">
+          <strong>${esc(card.title)}: ${esc(card.value)}</strong>
+          <small>${esc(card.body)}</small>
+          <span class="mini-chip ${esc(card.tone)}">${esc(card.badge)}</span>
+        </div>
+      `).join('');
+    }
+
     function renderOpsDashboard() {
       const empty = document.getElementById('opsEmpty');
       const grid = document.getElementById('opsGrid');
@@ -2009,6 +2133,7 @@
         missingDrafts.innerHTML = '';
         missingSavedReviews.innerHTML = '';
         opsHint.textContent = currentLang === 'ru' ? 'Загрузи пакет, чтобы увидеть кратчайший путь к полному покрытию по черновикам, review и approvals.' : 'Load a batch to see the quickest path to complete draft, review, and approval coverage.';
+        renderBenchmarkDashboard();
         renderDemoChecklist();
         return;
       }
@@ -2071,6 +2196,7 @@
           <small>${esc(getBatchDomain(item))} · ${currentLang === 'ru' ? 'лид готов, но review-файл не сохранён' : 'ready but no saved review file'}</small>
         </div>
       `).join('') || `<div class="muted">${currentLang === 'ru' ? 'У всех ready лидов уже есть сохранённые review-файлы.' : 'All ready leads have saved review coverage.'}</div>`;
+      renderBenchmarkDashboard();
       renderPresenterOverview();
       renderDemoChecklist();
     }

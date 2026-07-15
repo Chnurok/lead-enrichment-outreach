@@ -7,8 +7,10 @@ import argparse
 import base64
 import csv
 import io
+import inspect
 import ipaddress
 import json
+import mimetypes
 import os
 import sys
 import threading
@@ -23,6 +25,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS_DIR = ROOT / "skill" / "scripts"
 DEFAULT_REVIEW_PATH = ROOT / "examples" / "demo-review.json"
 DEFAULT_HTML_PATH = ROOT / "ui" / "index.html"
+DEFAULT_TEASER_HTML_PATH = ROOT / "ui" / "teaser.html"
 DEFAULT_DEMO_DOSSIER_PATH = ROOT / "examples" / "demo" / "ready" / "deepl-dossier.json"
 DEFAULT_DEMO_DRAFT_PATH = ROOT / "examples" / "demo" / "ready" / "deepl-draft.json"
 DEFAULT_DEMO_BATCH_PATH = ROOT / "examples" / "demo-output.json"
@@ -57,6 +60,19 @@ class ApiError(Exception):
         super().__init__(message)
         self.status = status
         self.message = message
+
+
+def run_workflow_compat(*args, **kwargs):
+    """Call workflow.run_workflow while tolerating older test doubles/signatures."""
+    target = workflow.run_workflow
+    try:
+        signature = inspect.signature(target)
+    except (TypeError, ValueError):
+        signature = None
+    if signature is not None:
+        accepted = signature.parameters
+        kwargs = {key: value for key, value in kwargs.items() if key in accepted}
+    return target(*args, **kwargs)
 
 
 def display_path(path: Path) -> str:
@@ -95,6 +111,330 @@ def require_string(value, field_name: str, *, allow_empty: bool = False, max_cha
     if max_chars is not None and len(value) > max_chars:
         raise ApiError(400, f"{field_name} exceeds limit of {max_chars} characters")
     return value
+
+
+def _normalize_host(value: str | None) -> str | None:
+    if not value or not isinstance(value, str):
+        return None
+    host = value.strip().lower()
+    if not host:
+        return None
+    if "://" in host:
+        host = urlparse(host).hostname or ""
+    host = host.lstrip(".")
+    if host.startswith("www."):
+        host = host[4:]
+    return host or None
+
+
+def _normalize_contact_value(value: str | None) -> str | None:
+    if not value or not isinstance(value, str):
+        return None
+    stripped = value.strip()
+    if not stripped:
+        return None
+    if stripped.startswith(("http://", "https://")):
+        parsed = urlparse(stripped)
+        host = _normalize_host(parsed.hostname)
+        path = parsed.path.rstrip("/") or "/"
+        query = f"?{parsed.query}" if parsed.query else ""
+        return f"{host}{path}{query}" if host else stripped.lower()
+    if "@" in stripped:
+        return stripped.lower()
+    return stripped.lower()
+
+
+DIRECTORY_LIKE_HOSTS = {
+    "2gis.ru",
+    "yandex.ru",
+    "yandex.com",
+    "maps.yandex.ru",
+    "google.com",
+    "google.ru",
+    "googleusercontent.com",
+    "linkedin.com",
+    "facebook.com",
+    "instagram.com",
+    "vk.com",
+    "zoon.ru",
+    "avito.ru",
+    "yellowpages.com",
+}
+
+
+def is_directory_like_host(host: str | None) -> bool:
+    normalized = _normalize_host(host)
+    if not normalized:
+        return False
+    return any(normalized == blocked or normalized.endswith(f".{blocked}") for blocked in DIRECTORY_LIKE_HOSTS)
+
+
+def infer_company_from_extension_payload(data: dict) -> str:
+    direct_company = data.get("company")
+    if isinstance(direct_company, str) and direct_company.strip():
+        return direct_company.strip()
+
+    page_context = data.get("page_context") if isinstance(data.get("page_context"), dict) else {}
+    for key in ("entity_name", "company", "selected_text", "title"):
+        value = page_context.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+
+    domain = infer_domain_from_extension_payload(data)
+    if domain:
+        return domain.split(".")[0]
+    raise ApiError(400, "company or page_context.title is required")
+
+
+def infer_domain_from_extension_payload(data: dict) -> str | None:
+    direct_domain = data.get("domain")
+    normalized_direct = _normalize_host(direct_domain)
+    if normalized_direct and not is_directory_like_host(normalized_direct):
+        return normalized_direct
+
+    page_context = data.get("page_context") if isinstance(data.get("page_context"), dict) else {}
+    candidate_url = page_context.get("url")
+    normalized_url_host = _normalize_host(candidate_url)
+    if normalized_url_host and not is_directory_like_host(normalized_url_host):
+        return normalized_url_host
+    return None
+
+
+def build_extension_result(artifact: dict, request_payload: dict) -> dict:
+    dossier = ((artifact or {}).get("artifacts") or {}).get("dossier") or {}
+    draft = ((artifact or {}).get("artifacts") or {}).get("draft")
+    review = dossier.get("review") or {}
+    contact_candidates = dossier.get("contact_candidates") or []
+    top_contact = (contact_candidates or [None])[0] or {}
+    page_context = request_payload.get("page_context") if isinstance(request_payload.get("page_context"), dict) else {}
+    verified_contacts = []
+    unverified_candidates = []
+    rejected_noise = []
+    seen_contacts = set()
+    language = dossier.get("content_language") or "en"
+
+    def is_preferred_contact_path(value: str) -> bool:
+        lowered = (value or "").lower()
+        return any(token in lowered for token in ("/contact", "contact-us", "/support", "/sales", "/help", "/demo", "/talk", "get-started"))
+
+    def verification_view(candidate: dict) -> dict:
+        source_records = candidate.get("source_records") or []
+        source_types = sorted({item.get("source_type") for item in source_records if item.get("source_type")})
+        source_urls = sorted({item.get("source_url") for item in source_records if item.get("source_url")})
+        confidence = float(candidate.get("confidence") or 0.0)
+        official = bool(candidate.get("official"))
+        primary_domain_match = bool(candidate.get("primary_domain_match"))
+        trust_class = candidate.get("trust_class")
+        contact_type = candidate.get("contact_type")
+        has_strong_site_source = any(item in {"mailto", "jsonld", "tel"} for item in source_types)
+        has_page_only_source = bool(source_types) and set(source_types).issubset({"page"})
+        source_count = len(source_types) or len(source_urls)
+        reasons_text = " ".join(candidate.get("reasons") or []).lower()
+        weak_for_outreach = bool(
+            trust_class == "weak"
+            or any(token in reasons_text for token in ("weak for outreach", "local part looks weak"))
+        )
+        rejected = bool(
+            weak_for_outreach
+            or confidence < 0.25
+        )
+        verified = bool(
+            not rejected
+            and (
+                (contact_type == "email" and official and has_strong_site_source and confidence >= 0.55)
+                or (contact_type == "phone" and primary_domain_match and has_strong_site_source and confidence >= 0.55)
+                or (contact_type == "contact_page" and primary_domain_match and confidence >= 0.35 and is_preferred_contact_path(candidate.get("value") or ""))
+                or (official and source_count >= 2 and has_strong_site_source and confidence >= 0.55)
+            )
+        )
+        if contact_type == "email" and official and has_page_only_source and not has_strong_site_source:
+            verified = False
+        why_verified = []
+        if official:
+            why_verified.append("matches official domain")
+        if primary_domain_match and not official:
+            why_verified.append("linked from official site")
+        if has_strong_site_source:
+            why_verified.append(f"seen via {', '.join(source_types)}")
+        if source_count >= 2:
+            why_verified.append("confirmed by multiple source signals")
+        return {
+            "value": candidate.get("value"),
+            "contact_type": contact_type,
+            "trust_class": trust_class,
+            "confidence": confidence,
+            "official": official,
+            "primary_domain_match": primary_domain_match,
+            "source_types": source_types,
+            "source_urls": source_urls[:3],
+            "verification_status": "verified" if verified else ("rejected" if rejected else "unverified"),
+            "why_verified": workflow.enrich_lead.translate_messages(why_verified, language),
+            "reasons": workflow.enrich_lead.translate_messages(candidate.get("reasons") or [], language),
+        }
+
+    def append_unique(items: list[dict], shaped: dict) -> None:
+        key = (
+            shaped.get("contact_type"),
+            _normalize_contact_value(shaped.get("value")),
+        )
+        if not key[1] or key in seen_contacts:
+            return
+        seen_contacts.add(key)
+        items.append(shaped)
+
+    for candidate in contact_candidates:
+        shaped = verification_view(candidate)
+        if shaped["verification_status"] == "verified":
+            append_unique(verified_contacts, shaped)
+        elif shaped["verification_status"] == "rejected":
+            append_unique(rejected_noise, shaped)
+        else:
+            append_unique(unverified_candidates, shaped)
+
+    if (
+        dossier.get("best_contact_email")
+        and not contact_candidates
+        and review.get("status") == "ready"
+        and not any(item.get("value") == dossier.get("best_contact_email") for item in verified_contacts)
+    ):
+        append_unique(verified_contacts, {
+            "value": dossier.get("best_contact_email"),
+            "contact_type": "email",
+            "trust_class": "official",
+            "confidence": float(dossier.get("contact_confidence") or 0.0),
+            "official": True,
+            "primary_domain_match": True,
+            "source_types": [],
+            "source_urls": [],
+            "verification_status": "verified",
+            "why_verified": workflow.enrich_lead.translate_messages(["legacy best contact on official domain"], language),
+            "reasons": [],
+        })
+
+    verified_contacts.sort(key=lambda item: (
+        0 if item.get("contact_type") == "email" else 1,
+        0 if (item.get("contact_type") == "contact_page" and is_preferred_contact_path(item.get("value") or "")) else 1,
+        -(item.get("confidence") or 0.0),
+        item.get("value") or "",
+    ))
+    verified_contacts = verified_contacts[:4]
+    best_verified_email = next((item for item in verified_contacts if item.get("contact_type") == "email"), None)
+    best_verified_path = verified_contacts[0] if verified_contacts else None
+
+    preferred_verified = best_verified_email or best_verified_path
+    show_best_contact = bool(
+        preferred_verified
+        or top_contact
+        and (
+            top_contact.get("trust_class") == "official"
+            or top_contact.get("contact_type") == "email"
+            or float(top_contact.get("confidence") or 0) >= 0.45
+            or review.get("status") == "ready"
+        )
+    )
+    best_contact_value = (
+        (preferred_verified or {}).get("value")
+        or (top_contact.get("value") if show_best_contact else None)
+        or dossier.get("best_contact_email")
+    )
+    best_contact_type = (
+        (preferred_verified or {}).get("contact_type")
+        or (top_contact.get("contact_type") if show_best_contact else None)
+        or ("email" if dossier.get("best_contact_email") else None)
+    )
+    best_contact_trust = (
+        (preferred_verified or {}).get("trust_class")
+        or (top_contact.get("trust_class") if show_best_contact else None)
+        or ("official" if dossier.get("best_contact_email") else None)
+    )
+    best_contact_confidence = (
+        (preferred_verified or {}).get("confidence")
+        or (top_contact.get("confidence") if show_best_contact else None)
+    )
+
+    return {
+        "company": dossier.get("company") or ((artifact.get("input") or {}).get("company")),
+        "primary_domain": dossier.get("primary_domain"),
+        "primary_site_url": dossier.get("primary_site_url"),
+        "summary": dossier.get("summary"),
+        "best_contact_email": dossier.get("best_contact_email"),
+        "emails": dossier.get("emails") or [],
+        "phones": dossier.get("phones") or [],
+        "contact_pages": dossier.get("contact_pages") or [],
+        "social_links": dossier.get("social_links") or [],
+        "warnings": dossier.get("warnings") or [],
+        "confidence": dossier.get("confidence"),
+        "entity_confidence": dossier.get("entity_confidence"),
+        "contact_confidence": dossier.get("contact_confidence"),
+        "official_site_confidence": dossier.get("official_site_confidence"),
+        "review": {
+            "status": review.get("status"),
+            "ready_for_outreach": bool(review.get("ready_for_outreach")),
+            "reasons": review.get("reasons") or [],
+            "next_step": review.get("next_step"),
+            "top_contact_candidates": review.get("top_contact_candidates") or [],
+        },
+        "draft": draft,
+        "best_contact": {
+            "value": best_contact_value,
+            "contact_type": best_contact_type,
+            "trust_class": best_contact_trust,
+            "confidence": best_contact_confidence,
+        },
+        "best_verified_email": best_verified_email,
+        "best_verified_path": best_verified_path,
+        "verified_contacts": verified_contacts,
+        "unverified_candidates": unverified_candidates,
+        "rejected_noise": rejected_noise,
+        "detected_context": {
+            "url": page_context.get("url"),
+            "title": page_context.get("title"),
+            "page_type": page_context.get("page_type"),
+            "provided_domain": request_payload.get("domain"),
+            "inferred_domain": infer_domain_from_extension_payload(request_payload),
+        },
+    }
+
+
+def run_extension_enrichment(request_payload: dict) -> dict:
+    if not isinstance(request_payload, dict):
+        raise ApiError(400, "request body must be a JSON object")
+
+    company = infer_company_from_extension_payload(request_payload)
+    domain = infer_domain_from_extension_payload(request_payload)
+    region = request_payload.get("region")
+    offer = request_payload.get("offer")
+    query_mode = request_payload.get("query_mode") or "smart"
+    fast_mode = bool(request_payload.get("fast_mode", True))
+    allow_review_required = bool(request_payload.get("allow_review_required", True))
+    page_context = request_payload.get("page_context") if isinstance(request_payload.get("page_context"), dict) else {}
+    preferred_language = workflow.enrich_lead.detect_content_language(
+        page_context.get("title"),
+        page_context.get("selected_text"),
+        page_context.get("visible_text"),
+    )
+
+    if region is not None:
+        require_string(region, "region")
+    if offer is not None:
+        require_string(offer, "offer", allow_empty=False, max_chars=500)
+    if query_mode not in {"basic", "smart"}:
+        raise ApiError(400, "query_mode must be basic or smart")
+
+    artifact = run_workflow_compat(
+        company,
+        domain=domain,
+        offer=offer,
+        region=region,
+        query_mode=query_mode,
+        allow_review_required=allow_review_required,
+        fast_mode=fast_mode,
+        preferred_language=preferred_language,
+    )
+    return {
+        "artifact": artifact,
+        "result": build_extension_result(artifact, request_payload),
+    }
 
 
 def decode_base64_zip(zip_base64: str) -> bytes:
@@ -397,7 +737,7 @@ def load_approved_bundle_zip_base64(zip_base64: str):
     }
 
 
-def run_batch_from_csv_text(csv_text: str, offer=None, query_mode="smart", allow_review_required=False):
+def run_batch_from_csv_text(csv_text: str, offer=None, query_mode="smart", allow_review_required=False, fast_mode=False):
     require_string(csv_text, "csv_text")
     if len(csv_text.encode("utf-8")) > MAX_CSV_TEXT_BYTES:
         raise ApiError(413, f"csv_text exceeds limit of {MAX_CSV_TEXT_BYTES} bytes")
@@ -420,6 +760,7 @@ def run_batch_from_csv_text(csv_text: str, offer=None, query_mode="smart", allow
             region=((row.get("region") or "").strip() or None),
             query_mode=query_mode,
             allow_review_required=allow_review_required,
+            fast_mode=fast_mode,
         )
         for row in rows
         if (row.get("company") or "").strip()
@@ -433,6 +774,7 @@ def run_batch_from_csv_text(csv_text: str, offer=None, query_mode="smart", allow
         offer=offer,
         query_mode=query_mode,
         allow_review_required=allow_review_required,
+        fast_mode=fast_mode,
     )
 
 
@@ -645,6 +987,10 @@ class Handler(BaseHTTPRequestHandler):
         return self.server.html_path
 
     @property
+    def teaser_html_path(self):
+        return getattr(self.server, "teaser_html_path", DEFAULT_TEASER_HTML_PATH)
+
+    @property
     def demo_batch_path(self):
         return getattr(self.server, "demo_batch_path", DEFAULT_DEMO_BATCH_PATH)
 
@@ -742,6 +1088,21 @@ class Handler(BaseHTTPRequestHandler):
         if not head_only:
             self.wfile.write(body)
 
+    def _send_file(self, path: Path, *, head_only=False):
+        if not path.exists() or not path.is_file():
+            raise ApiError(404, f"File not found: {display_path(path)}")
+        content_type, _ = mimetypes.guess_type(str(path))
+        content_type = content_type or "application/octet-stream"
+        body = path.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        for key, value in build_security_headers(content_type).items():
+            self.send_header(key, value)
+        self.end_headers()
+        if not head_only:
+            self.wfile.write(body)
+
     def _send_redirect(self, location: str, extra_headers=None):
         self.send_response(303)
         self.send_header("Location", location)
@@ -792,6 +1153,8 @@ class Handler(BaseHTTPRequestHandler):
             raise ApiError(400, "Invalid JSON body") from exc
 
     def _handle_error(self, exc):
+        if isinstance(exc, (BrokenPipeError, ConnectionResetError)):
+            return
         if isinstance(exc, ApiError):
             self._send_json(exc.status, {"ok": False, "error": exc.message})
         else:
@@ -815,6 +1178,17 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if parsed.path in {"/", "/index.html"}:
                 self._send_text(200, self.html_path.read_text(encoding="utf-8"), "text/html; charset=utf-8", head_only=head_only)
+                return
+            if parsed.path in {"/teaser", "/teaser.html"}:
+                self._send_text(200, self.teaser_html_path.read_text(encoding="utf-8"), "text/html; charset=utf-8", head_only=head_only)
+                return
+            if parsed.path.startswith("/assets/"):
+                relative = parsed.path.lstrip("/")
+                asset_path = (ROOT / relative).resolve()
+                assets_root = (ROOT / "assets").resolve()
+                if not str(asset_path).startswith(str(assets_root)):
+                    raise ApiError(403, "Forbidden asset path")
+                self._send_file(asset_path, head_only=head_only)
                 return
             self._ensure_authorized()
             if parsed.path in {"/health", "/healthz"}:
@@ -871,8 +1245,14 @@ class Handler(BaseHTTPRequestHandler):
                     offer=data.get("offer"),
                     query_mode=data.get("query_mode") or "smart",
                     allow_review_required=bool(data.get("allow_review_required")),
+                    fast_mode=bool(data.get("fast_mode")),
                 )
                 self._send_json(200, {"ok": True, "batch": artifact})
+                return
+            if parsed.path == "/api/extension/enrich":
+                data = self._read_json()
+                result = run_extension_enrichment(data)
+                self._send_json(200, {"ok": True, **result})
                 return
             if parsed.path == "/api/batch/export-ready":
                 data = self._read_json()

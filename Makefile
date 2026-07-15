@@ -1,10 +1,44 @@
 PYTHON ?= python3
 DEMO_OFFER ?= AI-assisted lead enrichment and outreach
+DEMO_TMP_DIR ?= .tmp
 
-.PHONY: test demo demo-quick demo-story demo-artifacts demo-ready demo-review-required demo-blocked demo-refusal demo-ui demo-launch demo-launch-public demo-health demo-public-health demo-smoke-local ui workflow-demo batch-demo ready-export-demo
+.PHONY: test verify extension-check demo-ui-smoke demo demo-quick demo-story demo-artifacts demo-ready demo-review-required demo-blocked demo-refusal demo-ui demo-launch demo-launch-public demo-health demo-public-health demo-smoke-local ui workflow-demo batch-demo ready-export-demo
 
 test:
 	$(PYTHON) -m unittest discover -s tests -q
+
+extension-check:
+	node --check extension/background.js
+	node --check extension/options.js
+	node --check extension/popup.js
+	node --check extension/content.js
+
+demo-ui-smoke:
+	@mkdir -p "$(DEMO_TMP_DIR)"; \
+	log_file="$(DEMO_TMP_DIR)/demo-ui-smoke.log"; \
+	page_file="$(DEMO_TMP_DIR)/demo-ui-smoke.html"; \
+	: > "$$log_file"; \
+	$(PYTHON) ui/review_server.py --demo --review-file examples/demo-review.json --demo-batch-file examples/demo-output.json --host 127.0.0.1 --port 8095 >"$$log_file" 2>&1 & \
+	pid=$$!; \
+	trap 'kill $$pid 2>/dev/null || true; wait $$pid 2>/dev/null || true' EXIT INT TERM; \
+	ready=0; \
+	for _ in 1 2 3 4 5 6 7 8 9 10; do \
+		if curl -fsS http://127.0.0.1:8095/healthz >/dev/null 2>&1; then \
+			ready=1; \
+			break; \
+		fi; \
+		sleep 1; \
+	done; \
+	if [ "$$ready" -ne 1 ]; then \
+		echo "demo UI failed to boot"; \
+		cat "$$log_file"; \
+		exit 1; \
+	fi; \
+	curl -fsS http://127.0.0.1:8095/healthz >/dev/null; \
+	curl -fsS http://127.0.0.1:8095/ >"$$page_file"; \
+	grep -q "Start 90-second demo" "$$page_file"
+
+verify: test extension-check demo demo-ui-smoke batch-demo ready-export-demo
 
 demo-quick:
 	@echo "Lead Enrichment Outreach demo"
@@ -21,6 +55,9 @@ demo-quick:
 	@echo "   make ready-export-demo"
 	@echo
 	@echo "Docs: README.md and docs/demo/README.md"
+	@echo
+	@echo "Ship checks"
+	@echo "   make verify"
 
 demo-story:
 	@echo "Demo story :: company/domain -> dossier -> trust gate -> draft -> human decision"
@@ -77,14 +114,17 @@ demo-blocked:
 	@$(PYTHON) -c "import json, pathlib; artifact = json.loads(pathlib.Path('examples/demo/blocked/unknown-co-dossier.json').read_text()); print('blocked ::', artifact['company']); print('status ::', artifact['review']['status']); print('warnings ::', '; '.join(artifact['warnings'])); print('next_step ::', artifact['review']['next_step'])"
 
 demo-refusal:
-	@$(PYTHON) skill/scripts/generate_outreach.py examples/demo/review_required/mistral-ai-dossier.json --offer "$(DEMO_OFFER)" >/tmp/leo-demo-refusal.out 2>/tmp/leo-demo-refusal.err; status=$$?; \
+	@mkdir -p "$(DEMO_TMP_DIR)"; \
+	out_file="$(DEMO_TMP_DIR)/leo-demo-refusal.out"; \
+	err_file="$(DEMO_TMP_DIR)/leo-demo-refusal.err"; \
+	$(PYTHON) skill/scripts/generate_outreach.py examples/demo/review_required/mistral-ai-dossier.json --offer "$(DEMO_OFFER)" >"$$out_file" 2>"$$err_file"; status=$$?; \
 	if [ $$status -eq 0 ]; then \
 		echo "Expected refusal, but draft generation succeeded"; \
-		cat /tmp/leo-demo-refusal.out; \
+		cat "$$out_file"; \
 		exit 1; \
 	fi; \
 	echo "refusal :: exit $$status"; \
-	cat /tmp/leo-demo-refusal.err
+	cat "$$err_file"
 
 workflow-demo:
 	@$(PYTHON) skill/scripts/workflow.py --dossier-json examples/demo/ready/deepl-dossier.json --offer "$(DEMO_OFFER)"

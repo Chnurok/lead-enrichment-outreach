@@ -9,7 +9,9 @@ __pycache__/
 .DS_Store
 .local-state/
 .supergoal/
+.tmp/
 examples/saved-reviews/
+extension.zip
 
 dist/
 *.egg-info/

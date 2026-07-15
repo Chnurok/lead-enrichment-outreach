@@ -1,11 +1,12 @@
 const DEFAULT_BASE_URL = "http://127.0.0.1:8095";
+const DEFAULT_REVIEW_TOKEN = "";
 const MAX_RECENT_RECOVERIES = 8;
 
 async function getSettings() {
   const stored = await chrome.storage.local.get(["backendBaseUrl", "reviewToken"]);
   return {
     backendBaseUrl: (stored.backendBaseUrl || DEFAULT_BASE_URL).replace(/\/+$/, ""),
-    reviewToken: (stored.reviewToken || "").trim()
+    reviewToken: (stored.reviewToken || DEFAULT_REVIEW_TOKEN).trim()
   };
 }
 
@@ -17,7 +18,7 @@ async function getRecentRecoveries() {
 async function saveRecentRecovery(result, pageContext) {
   const recent = await getRecentRecoveries();
   const entry = {
-    company: result.company || "Unknown company",
+    company: result.company || "Untitled company",
     primary_domain: result.primary_domain || null,
     best_contact: result.best_contact?.value || null,
     review_status: result.review?.status || "unknown",
@@ -36,7 +37,7 @@ async function fetchJson(url, options = {}) {
   try {
     response = await fetch(url, options);
   } catch (_error) {
-    throw new Error("Could not reach the review server");
+    throw new Error("Could not reach the review server.");
   }
   let payload = null;
   try {
@@ -69,6 +70,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         const health = await fetchJson(`${settings.backendBaseUrl}/healthz`, { headers });
         sendResponse({ ok: true, settings, recentRecoveries, health });
+      } catch (error) {
+        sendResponse({ ok: false, error: error.message || String(error) });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === "extension:testBackend") {
+    (async () => {
+      try {
+        const settings = {
+          backendBaseUrl: String(message.backendBaseUrl || DEFAULT_BASE_URL).trim().replace(/\/+$/, ""),
+          reviewToken: String(message.reviewToken || DEFAULT_REVIEW_TOKEN).trim()
+        };
+        const headers = {};
+        if (settings.reviewToken) {
+          headers["X-Review-Token"] = settings.reviewToken;
+        }
+        const health = await fetchJson(`${settings.backendBaseUrl}/healthz`, { headers });
+        sendResponse({ ok: true, settings, health });
       } catch (error) {
         sendResponse({ ok: false, error: error.message || String(error) });
       }

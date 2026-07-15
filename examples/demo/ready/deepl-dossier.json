@@ -40,6 +40,48 @@
   ],
   "snippets": [],
   "confidence": 0.7,
+  "entity_confidence": 0.82,
+  "contact_confidence": 0.72,
+  "official_site_confidence": 0.86,
+  "evidence_summary": {
+    "verified_contact_count": 1,
+    "memory_reused_contact_count": 0,
+    "useful_contact_count": 2,
+    "high_usability_contact_count": 1,
+    "official_site_confidence": 0.86
+  },
+  "contact_candidates": [
+    {
+      "value": "support@deepl.com",
+      "contact_type": "email",
+      "trust_class": "official",
+      "official": true,
+      "confidence": 0.72,
+      "outreach_usability": "high",
+      "is_primary": true,
+      "source_records": [
+        {
+          "source_url": "https://www.deepl.com/contact",
+          "source_type": "page"
+        }
+      ]
+    },
+    {
+      "value": "https://www.deepl.com/contact",
+      "contact_type": "contact_page",
+      "trust_class": "official",
+      "official": true,
+      "confidence": 0.58,
+      "outreach_usability": "medium",
+      "is_primary": false,
+      "source_records": [
+        {
+          "source_url": "https://www.deepl.com/contact",
+          "source_type": "page"
+        }
+      ]
+    }
+  ],
   "trust_signals": {
     "has_domain": true,
     "has_summary": true,

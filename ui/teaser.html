@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Lead Recovery Copilot</title>
+    <style>
+      :root {
+        --bg: #f4eadc;
+        --panel: rgba(255, 250, 243, 0.84);
+        --panel-strong: rgba(255, 248, 239, 0.96);
+        --ink: #191513;
+        --muted: #6f645b;
+        --line: rgba(122, 91, 66, 0.14);
+        --accent: #b74b25;
+        --accent-dark: #8f3719;
+        --accent-soft: #f4ddcd;
+        --ok: #255f3d;
+        --warn: #996014;
+        --shadow: 0 30px 90px rgba(89, 58, 34, 0.13);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font: 16px/1.5 Georgia, "Times New Roman", serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(255,255,255,0.85) 0%, transparent 34%),
+          radial-gradient(circle at 85% 20%, rgba(244,221,205,0.9) 0%, transparent 24%),
+          linear-gradient(180deg, #f9f1e5 0%, var(--bg) 100%);
+      }
+
+      .shell {
+        max-width: 1220px;
+        margin: 0 auto;
+        padding: 24px 18px 52px;
+      }
+
+      .nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 26px;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.16em;
+        color: var(--muted);
+      }
+
+      .brand-mark {
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+        background: linear-gradient(180deg, #d87444 0%, var(--accent) 100%);
+        box-shadow: 0 0 0 7px rgba(183, 75, 37, 0.08);
+      }
+
+      .nav-chip {
+        border: 1px solid var(--line);
+        background: rgba(255, 250, 243, 0.7);
+        border-radius: 999px;
+        padding: 8px 12px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.02fr) minmax(320px, 0.98fr);
+        gap: 28px;
+        align-items: center;
+      }
+
+      .copy {
+        display: grid;
+        gap: 18px;
+      }
+
+      .eyebrow {
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.16em;
+        color: var(--muted);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(42px, 7vw, 78px);
+        line-height: 0.94;
+        letter-spacing: -0.05em;
+        max-width: 10ch;
+      }
+
+      .sub {
+        margin: 0;
+        max-width: 32ch;
+        color: var(--muted);
+        font-size: 19px;
+      }
+
+      .punch {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        border: 1px solid rgba(183, 75, 37, 0.16);
+        background: rgba(255, 248, 239, 0.82);
+        border-radius: 18px;
+        padding: 13px 15px;
+        box-shadow: var(--shadow);
+        max-width: 34ch;
+      }
+
+      .punch strong {
+        font-size: 17px;
+      }
+
+      .cta-row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        padding: 13px 18px;
+        text-decoration: none;
+        font-weight: 700;
+        font-size: 15px;
+      }
+
+      .button.primary {
+        background: var(--accent);
+        color: #fff8f2;
+        box-shadow: 0 18px 40px rgba(183, 75, 37, 0.22);
+      }
+
+      .button.secondary {
+        border: 1px solid var(--line);
+        background: rgba(255, 250, 243, 0.76);
+        color: var(--ink);
+      }
+
+      .proof-row {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .proof {
+        border: 1px solid var(--line);
+        background: rgba(255, 250, 243, 0.8);
+        border-radius: 16px;
+        padding: 11px 12px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .device {
+        position: relative;
+        padding: 16px;
+        border-radius: 34px;
+        background: linear-gradient(180deg, rgba(255,255,255,0.62) 0%, rgba(255,250,243,0.92) 100%);
+        border: 1px solid rgba(123, 89, 65, 0.12);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+
+      .device::before {
+        content: "";
+        position: absolute;
+        inset: 14px;
+        border-radius: 24px;
+        border: 1px solid rgba(123, 89, 65, 0.08);
+        pointer-events: none;
+      }
+
+      .device img {
+        display: block;
+        width: 100%;
+        height: auto;
+        border-radius: 20px;
+        position: relative;
+        z-index: 1;
+      }
+
+      .section {
+        margin-top: 34px;
+        display: grid;
+        gap: 14px;
+      }
+
+      .section-title {
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.16em;
+        color: var(--muted);
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .card {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        border-radius: 24px;
+        padding: 18px;
+        box-shadow: var(--shadow);
+      }
+
+      .card h3,
+      .usecase h3 {
+        margin: 0 0 8px;
+        font-size: 24px;
+        line-height: 1.02;
+      }
+
+      .card p,
+      .usecase p {
+        margin: 0;
+        color: var(--muted);
+      }
+
+      .pill {
+        display: inline-flex;
+        margin-bottom: 12px;
+        border-radius: 999px;
+        padding: 5px 9px;
+        background: #dbeee0;
+        color: var(--ok);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .usecase {
+        display: grid;
+        grid-template-columns: 1.08fr 0.92fr;
+        gap: 14px;
+      }
+
+      .journey {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 16px;
+      }
+
+      .step {
+        border: 1px solid var(--line);
+        background: rgba(255,255,255,0.5);
+        border-radius: 999px;
+        padding: 10px 12px;
+        font-size: 14px;
+      }
+
+      .quote {
+        border: 1px solid rgba(183, 75, 37, 0.16);
+        background: linear-gradient(180deg, rgba(255,248,239,0.96) 0%, rgba(244,221,205,0.8) 100%);
+      }
+
+      .quote p {
+        color: #5c4638;
+        font-size: 18px;
+      }
+
+      .footer-note {
+        margin-top: 26px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      @media (max-width: 940px) {
+        .hero,
+        .grid,
+        .usecase {
+          grid-template-columns: 1fr;
+        }
+
+        h1 {
+          max-width: 11ch;
+        }
+      }
+
+      @media (max-width: 560px) {
+        .shell {
+          padding: 18px 14px 36px;
+        }
+
+        .nav {
+          align-items: flex-start;
+          flex-direction: column;
+          margin-bottom: 18px;
+        }
+
+        h1 {
+          font-size: 42px;
+          max-width: none;
+        }
+
+        .sub {
+          font-size: 17px;
+        }
+
+        .card,
+        .device {
+          border-radius: 22px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="nav">
+        <div class="brand">
+          <span class="brand-mark"></span>
+          <span>Lead Recovery Copilot</span>
+        </div>
+        <div class="nav-chip">Расширение для лидов со слабым веб-присутствием</div>
+      </section>
+
+      <section class="hero">
+        <div class="copy">
+          <div class="eyebrow">Инструмент для аутрича и ручного проспектинга</div>
+          <h1>Превращает «грязный» лид в понятный контактный путь</h1>
+          <p class="sub">
+            Открываешь сайт, карточку в каталоге или map/listing страницу. Получаешь лучший доступный способ выйти на компанию, краткий контекст и понятный next step.
+          </p>
+          <div class="punch">
+            <strong>Не просто “ищет email”.</strong>
+            <span>Показывает, можно ли вообще адекватно идти в контакт.</span>
+          </div>
+          <div class="cta-row">
+            <a class="button primary" href="#demo">Как это работает</a>
+            <a class="button secondary" href="#audience">Кому это нужно</a>
+          </div>
+          <div class="proof-row">
+            <div class="proof">Лучший reachable contact path</div>
+            <div class="proof">Проверка доверия и рисков</div>
+            <div class="proof">Human-in-the-loop для аутрича</div>
+          </div>
+        </div>
+
+        <div class="device">
+          <img src="/assets/lead-recovery-copilot-popup-mockup.png" alt="Mockup расширения Lead Recovery Copilot">
+        </div>
+      </section>
+
+      <section id="demo" class="section">
+        <div class="section-title">Что делает расширение</div>
+        <div class="grid">
+          <article class="card">
+            <div class="pill">1. Считывает</div>
+            <h3>Понимает текущую страницу</h3>
+            <p>Сайт компании, каталог, карта, карточка в выдаче или слабая локальная страница бизнеса.</p>
+          </article>
+          <article class="card">
+            <div class="pill">2. Восстанавливает</div>
+            <h3>Находит лучший путь для контакта</h3>
+            <p>Официальный email, business-linked почту, телефон, контактную страницу или другой рабочий fallback.</p>
+          </article>
+          <article class="card">
+            <div class="pill">3. Подсказывает</div>
+            <h3>Даёт оператору ясный verdict</h3>
+            <p>Что можно брать в работу, что нужно проверить руками, а что пока не тянет на нормальный outreach.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="audience" class="section">
+        <div class="section-title">Где это особенно сильно</div>
+        <div class="usecase">
+          <article class="card">
+            <h3>Локальный бизнес и слабый веб</h3>
+            <p>
+              Когда у компании нет нормального официального сайта, всё размазано по справочникам, картам и старым страницам, а лидогену всё равно нужно решить: можно с этим лидом работать или нет.
+            </p>
+            <div class="journey">
+              <div class="step">Каталог / карта</div>
+              <div class="step">Совпадение сущности</div>
+              <div class="step">Контактный путь</div>
+              <div class="step">Нужна проверка</div>
+              <div class="step">Дальше в аутрич</div>
+            </div>
+          </article>
+          <article class="card quote">
+            <h3>Главная идея</h3>
+            <p>
+              Не база контактов. Не “ещё один Apollo”. А инструмент, который вытаскивает рабочие лиды там, где обычные enrichment-сервисы сыпятся или отдают мусор.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <p class="footer-note">
+        Product teaser. Расширение для браузера + backend enrichment engine + ручной операторский контроль.
+      </p>
+    </main>
+  </body>
+  </html>
