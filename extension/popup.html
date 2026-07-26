@@ -33,6 +33,14 @@
           <span>Company override</span>
           <input id="companyInput" type="text" placeholder="Optional">
         </label>
+        <label id="demoControls" class="field hidden">
+          <span>Demo-safe result</span>
+          <select id="demoScenario">
+            <option value="ready">Ready · DeepL</option>
+            <option value="review_required">Review required · Mistral AI</option>
+            <option value="blocked">Blocked · Unknown Co</option>
+          </select>
+        </label>
         <div class="button-row controls-row">
           <button id="recoverButton" class="primary strong">Recover contact</button>
           <button id="optionsButton" class="secondary">Settings</button>
@@ -81,7 +89,7 @@
 
         <div class="grid">
           <div class="card accent-card">
-            <div class="label label-strong">Best verified path</div>
+            <div class="label label-strong">Best contact path</div>
             <div id="bestContactValue" class="value">—</div>
             <div id="bestContactMeta" class="meta"></div>
             <div class="button-row">
@@ -167,13 +175,14 @@
           </div>
         </div>
 
-        <div class="list-block">
-          <div class="block-head">
-            <div class="label label-strong">Recent recoveries</div>
-            <div class="block-meta">Local history</div>
-          </div>
-          <ul id="recentList" class="list"></ul>
+      </section>
+
+      <section class="list-block">
+        <div class="block-head">
+          <div class="label label-strong">Recent recoveries</div>
+          <div class="block-meta">Local history</div>
         </div>
+        <ul id="recentList" class="list"></ul>
       </section>
     </main>
     <script src="popup.js"></script>

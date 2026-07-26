@@ -2,6 +2,7 @@ import csv
 import importlib.util
 import json
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -71,7 +72,7 @@ class ExportReadyLeadsTests(unittest.TestCase):
 
             subprocess.run(
                 [
-                    "python3",
+                    sys.executable,
                     str(SCRIPT),
                     str(batch_path),
                     "--output-json",

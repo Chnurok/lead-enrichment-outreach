@@ -45,6 +45,8 @@ const backendStatus = document.getElementById("backendStatus");
 const usageHint = document.getElementById("usageHint");
 const usageCount = document.getElementById("usageCount");
 const pageTypeValue = document.getElementById("pageTypeValue");
+const demoControls = document.getElementById("demoControls");
+const demoScenario = document.getElementById("demoScenario");
 
 let currentPageContext = null;
 let currentResult = null;
@@ -52,9 +54,9 @@ let currentTab = null;
 let isRecovering = false;
 let candidatesExpanded = false;
 
-function setStatus(text, isError = false) {
+function setStatus(text, mode = "subtle") {
   statusBox.textContent = text;
-  statusBox.style.color = isError ? "#8b1e1e" : "";
+  statusBox.className = `status ${mode}`;
 }
 
 function setBackendStatus(text, mode = "subtle") {
@@ -67,6 +69,21 @@ function setRecoveringState(nextValue) {
   recoverButton.disabled = nextValue;
   optionsButton.disabled = nextValue;
   recoverButton.textContent = nextValue ? "Recovering…" : "Recover contact";
+}
+
+function setActionAvailability(result = null) {
+  const best = result?.best_contact || {};
+  const bestValue = best.value || "";
+  const bestIsPage = /^https?:\/\//i.test(bestValue);
+  const bestIsVerified = best.verification_status === "verified";
+  const isBlocked = result?.review?.status === "blocked";
+  copyBestButton.disabled = !bestValue;
+  openBestButton.disabled = !bestValue || isBlocked || (!bestIsPage && !bestIsVerified);
+  copyBestEmailButton.disabled = !result?.best_verified_email?.value;
+  openSiteButton.disabled = !result?.primary_site_url && !result?.primary_domain;
+  copySummaryButton.disabled = !result?.summary;
+  copyDraftSubjectButton.disabled = !result?.draft?.subject && !result?.outreach_opener?.subject;
+  copyDraftBodyButton.disabled = !result?.draft?.body && !result?.outreach_opener?.body && !result?.outreach_opener?.opener;
 }
 
 function renderList(node, items, emptyText) {
@@ -113,6 +130,9 @@ function renderRecent(recentRecoveries) {
   }
   recentRecoveries.forEach((item) => {
     const li = document.createElement("li");
+    li.className = "recent-entry";
+    const copy = document.createElement("span");
+    copy.className = "recent-copy";
     const bits = [item.company];
     if (item.review_status) {
       bits.push(item.review_status);
@@ -120,7 +140,28 @@ function renderRecent(recentRecoveries) {
     if (item.best_contact) {
       bits.push(item.best_contact);
     }
-    li.textContent = bits.join(" · ");
+    copy.textContent = bits.join(" · ");
+    li.appendChild(copy);
+    const actions = document.createElement("span");
+    actions.className = "recent-actions";
+    if (item.best_contact) {
+      const copyButton = document.createElement("button");
+      copyButton.className = "ghost";
+      copyButton.textContent = "Copy";
+      copyButton.addEventListener("click", () => runAction(() => copyText(item.best_contact, "Recent contact copied.")));
+      actions.appendChild(copyButton);
+    }
+    const openValue = item.primary_site_url || (item.primary_domain ? `https://${item.primary_domain}` : null);
+    if (openValue) {
+      const openButton = document.createElement("button");
+      openButton.className = "ghost";
+      openButton.textContent = "Open";
+      openButton.addEventListener("click", () => openUrl(openValue));
+      actions.appendChild(openButton);
+    }
+    if (actions.childElementCount) {
+      li.appendChild(actions);
+    }
     recentList.appendChild(li);
   });
 }
@@ -133,12 +174,15 @@ function renderResult(result) {
   const warnings = result.warnings || [];
   const reviewReasons = result.review?.reasons || [];
   const detectedContext = result.detected_context || {};
-  const draft = result.draft || null;
+  const draft = result.draft || result.outreach_opener || null;
+  const reviewStatus = ["ready", "review_required", "blocked"].includes(result.review?.status)
+    ? result.review.status
+    : "unknown";
   resultBox.classList.remove("hidden");
   companyName.textContent = result.company || "Untitled company";
   resultSubline.textContent = result.primary_domain || result.detected_context?.url || "Recovered from the current page context.";
-  reviewBadge.textContent = result.review?.status || "unknown";
-  reviewBadge.className = `badge ${result.review?.status || ""}`;
+  reviewBadge.textContent = reviewStatus;
+  reviewBadge.className = `badge ${reviewStatus}`;
   summaryText.textContent = result.summary || "No summary yet.";
   nextStepValue.textContent = result.review?.next_step || "Review manually";
   reviewReasonMeta.textContent = reviewReasons.length ? reviewReasons.join(" · ") : "No blocking reasons.";
@@ -146,7 +190,11 @@ function renderResult(result) {
   contextMeta.textContent = [detectedContext.page_type, detectedContext.title].filter(Boolean).join(" · ");
   if (result.best_contact?.value) {
     bestContactValue.textContent = result.best_contact.value;
-    bestContactMeta.textContent = [result.best_contact?.contact_type, result.best_contact?.trust_class].filter(Boolean).join(" · ");
+    bestContactMeta.textContent = [
+      result.best_contact?.contact_type,
+      result.best_contact?.trust_class,
+      result.best_contact?.verification_status
+    ].filter(Boolean).join(" · ");
   } else {
     bestContactValue.textContent = "No verified direct contact";
     bestContactMeta.textContent = "Only unverified candidates or rejected noise were found.";
@@ -175,15 +223,17 @@ function renderResult(result) {
   toggleCandidatesButton.textContent = unverified.length ? `Show candidates (${unverified.length})` : "Show candidates";
   renderList(rejectedList, rejected.map(formatVerificationItem), "No rejected noise.");
   renderList(warningsList, warnings, "No warnings.");
-  if (draft && (draft.subject || draft.body)) {
+  const draftBody = draft?.body || draft?.opener || "";
+  if (draft && (draft.subject || draftBody)) {
     draftBlock.classList.remove("hidden");
     draftSubjectValue.textContent = draft.subject || "No subject line";
-    draftBodyValue.textContent = draft.body || "No draft body";
+    draftBodyValue.textContent = draftBody || "No draft body";
   } else {
     draftBlock.classList.add("hidden");
     draftSubjectValue.textContent = "—";
     draftBodyValue.textContent = "—";
   }
+  setActionAvailability(result);
 }
 
 async function getCurrentTab() {
@@ -224,20 +274,28 @@ async function collectContext() {
   }
   contextLine.textContent = `${currentPageContext.page_type || "unknown"} · ${currentPageContext.title || currentPageContext.url}`;
   pageTypeValue.textContent = currentPageContext.page_type || "unknown";
+  if (currentPageContext.entity_name) {
+    companyInput.placeholder = currentPageContext.entity_name;
+  }
 }
 
-async function refreshState() {
+async function refreshState({ preserveStatus = false } = {}) {
   const response = await chrome.runtime.sendMessage({ type: "extension:getState" });
   if (!response?.ok) {
     setBackendStatus("Backend: unavailable", "error");
-    setStatus(response?.error || "Review server is unavailable. Open Settings to verify the backend URL and review token.", true);
-    renderRecent([]);
-    return;
+    if (!preserveStatus) {
+      setStatus(response?.error || "Review server is unavailable. Open Settings to verify the backend URL and review token.", "error");
+    }
+    renderRecent(response?.recentRecoveries || []);
+    demoControls.classList.add("hidden");
+    return false;
   }
   const health = response.health || {};
   const summary = health.demo_batch_summary || {};
   setBackendStatus(`Backend: ok · ready ${summary.ready ?? "n/a"}`, "ok");
   renderRecent(response.recentRecoveries || []);
+  demoControls.classList.toggle("hidden", !health.demo_mode);
+  return true;
 }
 
 async function recoverContact() {
@@ -245,6 +303,9 @@ async function recoverContact() {
     await collectContext();
   }
   setRecoveringState(true);
+  currentResult = null;
+  resultBox.classList.add("hidden");
+  setActionAvailability();
   setStatus("Recovering the best contact path…");
   const payload = {
     company: companyInput.value.trim() || undefined,
@@ -252,14 +313,26 @@ async function recoverContact() {
     allow_review_required: true,
     fast_mode: true
   };
+  if (!demoControls.classList.contains("hidden")) {
+    payload.demo_scenario = demoScenario.value;
+  }
   try {
     const response = await chrome.runtime.sendMessage({ type: "extension:enrich", payload });
     if (!response?.ok) {
       throw new Error(response?.error || "Unknown backend error.");
     }
     renderResult(response.payload.result);
-    setStatus(`Done via ${response.settings.backendBaseUrl}`);
-    await refreshState();
+    const reviewStatus = response.payload.result?.review?.status;
+    if (reviewStatus === "ready") {
+      setStatus("Recovery ready. Review the evidence before outreach.", "ok");
+    } else if (reviewStatus === "review_required") {
+      setStatus("Recovery needs human review. Follow the next step below.", "warning");
+    } else if (reviewStatus === "blocked") {
+      setStatus("Recovery blocked. Do not start outreach.", "error");
+    } else {
+      setStatus(`Recovery complete via ${response.settings.backendBaseUrl}.`);
+    }
+    await refreshState({ preserveStatus: true });
   } finally {
     setRecoveringState(false);
   }
@@ -274,10 +347,18 @@ async function copyText(value, successText) {
 }
 
 function openUrl(url) {
-  if (!url) {
+  if (!url || !/^(https?:|mailto:|tel:)/i.test(url)) {
     return;
   }
   chrome.tabs.create({ url });
+}
+
+async function runAction(action) {
+  try {
+    await action();
+  } catch (error) {
+    setStatus(error.message || String(error), "error");
+  }
 }
 
 function openBestContact() {
@@ -307,16 +388,16 @@ recoverButton.addEventListener("click", async () => {
   try {
     await recoverContact();
   } catch (error) {
-    setStatus(error.message || String(error), true);
+    setStatus(error.message || String(error), "error");
   }
 });
 
 optionsButton.addEventListener("click", () => chrome.runtime.openOptionsPage());
-copyBestButton.addEventListener("click", () => copyText(currentResult?.best_contact?.value, "Best contact copied."));
-copyBestEmailButton.addEventListener("click", () => copyText(currentResult?.best_verified_email?.value, "Best email copied."));
-copySummaryButton.addEventListener("click", () => copyText(currentResult?.summary, "Summary copied."));
-copyDraftSubjectButton.addEventListener("click", () => copyText(currentResult?.draft?.subject, "Draft subject copied."));
-copyDraftBodyButton.addEventListener("click", () => copyText(currentResult?.draft?.body, "Draft body copied."));
+copyBestButton.addEventListener("click", () => runAction(() => copyText(currentResult?.best_contact?.value, "Best contact copied.")));
+copyBestEmailButton.addEventListener("click", () => runAction(() => copyText(currentResult?.best_verified_email?.value, "Best email copied.")));
+copySummaryButton.addEventListener("click", () => runAction(() => copyText(currentResult?.summary, "Summary copied.")));
+copyDraftSubjectButton.addEventListener("click", () => runAction(() => copyText(currentResult?.draft?.subject || currentResult?.outreach_opener?.subject, "Draft subject copied.")));
+copyDraftBodyButton.addEventListener("click", () => runAction(() => copyText(currentResult?.draft?.body || currentResult?.outreach_opener?.body || currentResult?.outreach_opener?.opener, "Draft body copied.")));
 openBestButton.addEventListener("click", openBestContact);
 openSiteButton.addEventListener("click", openPrimarySite);
 toggleCandidatesButton.addEventListener("click", () => {
@@ -327,11 +408,9 @@ toggleCandidatesButton.addEventListener("click", () => {
     : `Show candidates (${currentResult?.unverified_candidates?.length || 0})`;
 });
 
-Promise.all([
-  collectContext(),
-  refreshState()
-]).then(() => {
-  if (!isRecovering) {
+setActionAvailability();
+Promise.all([collectContext(), refreshState()]).then(([, backendReady]) => {
+  if (!isRecovering && backendReady) {
     setStatus("Ready to recover.");
   }
-}).catch((error) => setStatus(error.message || String(error), true));
+}).catch((error) => setStatus(error.message || String(error), "error"));

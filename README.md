@@ -85,18 +85,22 @@ Then:
 3. `Load unpacked`
 4. select `extension/`
 
-The extension talks to the local review server through:
+The extension talks to the review server through:
 
 - `POST /api/extension/enrich`
+- `GET /healthz`
 
 Default backend:
 
 - `http://127.0.0.1:8095`
 
+`make demo-ui` also enables deterministic extension samples for `ready`, `review_required`, and `blocked`, so the browser-native demo does not depend on live enrichment. The popup remains human-review-first and never sends outreach.
+
 Canonical packaging note:
 
 - treat `extension/` as the source of truth
 - treat `extension.zip` as an optional derived artifact, not as the editable extension source
+- run `make extension-check` and `make extension-backend-smoke` (both are part of `make verify`) before packaging
 
 ## What to do in the first 3 minutes
 

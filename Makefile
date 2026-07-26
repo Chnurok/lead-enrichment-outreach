@@ -2,7 +2,7 @@ PYTHON ?= python3
 DEMO_OFFER ?= AI-assisted lead enrichment and outreach
 DEMO_TMP_DIR ?= .tmp
 
-.PHONY: test verify extension-check demo-ui-smoke demo demo-quick demo-story demo-artifacts demo-ready demo-review-required demo-blocked demo-refusal demo-ui demo-launch demo-launch-public demo-health demo-public-health demo-smoke-local ui workflow-demo batch-demo ready-export-demo
+.PHONY: test verify extension-check extension-backend-smoke demo-ui-smoke demo demo-quick demo-story demo-artifacts demo-ready demo-review-required demo-blocked demo-refusal demo-ui demo-launch demo-launch-public demo-health demo-public-health demo-smoke-local ui workflow-demo batch-demo ready-export-demo
 
 test:
 	$(PYTHON) -m unittest discover -s tests -q
@@ -12,33 +12,16 @@ extension-check:
 	node --check extension/options.js
 	node --check extension/popup.js
 	node --check extension/content.js
+	node extension/smoke-test.js
+	node extension/popup-smoke-test.js
+
+extension-backend-smoke:
+	$(PYTHON) scripts/smoke_extension_backend.py
 
 demo-ui-smoke:
-	@mkdir -p "$(DEMO_TMP_DIR)"; \
-	log_file="$(DEMO_TMP_DIR)/demo-ui-smoke.log"; \
-	page_file="$(DEMO_TMP_DIR)/demo-ui-smoke.html"; \
-	: > "$$log_file"; \
-	$(PYTHON) ui/review_server.py --demo --review-file examples/demo-review.json --demo-batch-file examples/demo-output.json --host 127.0.0.1 --port 8095 >"$$log_file" 2>&1 & \
-	pid=$$!; \
-	trap 'kill $$pid 2>/dev/null || true; wait $$pid 2>/dev/null || true' EXIT INT TERM; \
-	ready=0; \
-	for _ in 1 2 3 4 5 6 7 8 9 10; do \
-		if curl -fsS http://127.0.0.1:8095/healthz >/dev/null 2>&1; then \
-			ready=1; \
-			break; \
-		fi; \
-		sleep 1; \
-	done; \
-	if [ "$$ready" -ne 1 ]; then \
-		echo "demo UI failed to boot"; \
-		cat "$$log_file"; \
-		exit 1; \
-	fi; \
-	curl -fsS http://127.0.0.1:8095/healthz >/dev/null; \
-	curl -fsS http://127.0.0.1:8095/ >"$$page_file"; \
-	grep -q "Start 90-second demo" "$$page_file"
+	$(PYTHON) scripts/smoke_demo_ui.py
 
-verify: test extension-check demo demo-ui-smoke batch-demo ready-export-demo
+verify: test extension-check extension-backend-smoke demo demo-ui-smoke batch-demo ready-export-demo
 
 demo-quick:
 	@echo "Lead Enrichment Outreach demo"

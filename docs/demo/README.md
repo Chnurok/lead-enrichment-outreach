@@ -77,8 +77,11 @@ If you want to show the browser-native operator surface instead of only the revi
 
 1. keep `make demo-ui` running
 2. load unpacked `extension/` in Chromium
-3. open a company-like page
-4. run `Recover contact`
+3. open any normal `http://` or `https://` page
+4. choose a bundled `Demo-safe result` (`ready`, `review_required`, or `blocked`)
+5. run `Recover contact`
+
+The demo-safe selector appears only when `/healthz` reports demo mode. It reads the curated demo batch and avoids live enrichment, making the extension pass reproducible. Start the review server without `--demo` when you want the extension to recover the actual current page.
 
 What to point at:
 - backend health badge
@@ -86,6 +89,7 @@ What to point at:
 - best contact path
 - next step and review reasons
 - draft opener when the backend returns one
+- explicit human-review gating; no outreach is auto-sent
 
 ## Demo artifacts
 

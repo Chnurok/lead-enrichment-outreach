@@ -69,7 +69,7 @@ class GenerateOutreachTests(unittest.TestCase):
             dossier_path = Path(tmp) / "dossier.json"
             dossier_path.write_text(json.dumps(dossier), encoding="utf-8")
             proc = subprocess.run([
-                "python3", str(SCRIPT), str(dossier_path),
+                sys.executable, str(SCRIPT), str(dossier_path),
                 "--offer", "AI-assisted outreach workflows"
             ], capture_output=True, text=True)
         self.assertEqual(proc.returncode, 2)
@@ -86,7 +86,7 @@ class GenerateOutreachTests(unittest.TestCase):
             dossier_path = Path(tmp) / "dossier.json"
             dossier_path.write_text(json.dumps(dossier), encoding="utf-8")
             proc = subprocess.run([
-                "python3", str(SCRIPT), str(dossier_path),
+                sys.executable, str(SCRIPT), str(dossier_path),
                 "--offer", "AI-assisted outreach workflows",
                 "--allow-review-required"
             ], capture_output=True, text=True)

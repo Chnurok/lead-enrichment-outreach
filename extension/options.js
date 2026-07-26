@@ -12,6 +12,28 @@ function setStatus(text, mode = "subtle") {
   statusBox.className = `status ${mode}`;
 }
 
+function normalizeBaseUrl(value) {
+  const candidate = value.trim() || DEFAULT_BASE_URL;
+  const parsed = new URL(candidate);
+  if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password) {
+    throw new Error("Use an http:// or https:// backend URL without embedded credentials.");
+  }
+  return parsed.href.replace(/\/+$/, "");
+}
+
+async function ensureBackendPermission(baseUrl) {
+  const parsed = new URL(baseUrl);
+  const originPattern = `${parsed.protocol}//${parsed.hostname}/*`;
+  const granted = await chrome.permissions.contains({ origins: [originPattern] });
+  if (granted) {
+    return;
+  }
+  const approved = await chrome.permissions.request({ origins: [originPattern] });
+  if (!approved) {
+    throw new Error("Backend access was not granted. Allow this origin to save or test it.");
+  }
+}
+
 async function loadSettings() {
   const stored = await chrome.storage.local.get(["backendBaseUrl", "reviewToken"]);
   backendBaseUrl.value = stored.backendBaseUrl || DEFAULT_BASE_URL;
@@ -19,17 +41,26 @@ async function loadSettings() {
 }
 
 saveButton.addEventListener("click", async () => {
-  await chrome.storage.local.set({
-    backendBaseUrl: backendBaseUrl.value.trim() || DEFAULT_BASE_URL,
-    reviewToken: reviewToken.value.trim() || DEFAULT_REVIEW_TOKEN
-  });
-  setStatus("Saved.", "ok");
+  try {
+    const baseUrl = normalizeBaseUrl(backendBaseUrl.value);
+    await ensureBackendPermission(baseUrl);
+    await chrome.storage.local.set({
+      backendBaseUrl: baseUrl,
+      reviewToken: reviewToken.value.trim() || DEFAULT_REVIEW_TOKEN
+    });
+    backendBaseUrl.value = baseUrl;
+    setStatus("Settings saved.", "ok");
+  } catch (error) {
+    setStatus(error.message || String(error), "error");
+  }
 });
 
 testButton.addEventListener("click", async () => {
-  const baseUrl = backendBaseUrl.value.trim() || DEFAULT_BASE_URL;
+  let baseUrl;
   const token = reviewToken.value.trim() || DEFAULT_REVIEW_TOKEN;
   try {
+    baseUrl = normalizeBaseUrl(backendBaseUrl.value);
+    await ensureBackendPermission(baseUrl);
     setStatus("Checking backend…");
     const response = await chrome.runtime.sendMessage({
       type: "extension:testBackend",

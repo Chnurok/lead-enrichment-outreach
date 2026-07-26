@@ -161,12 +161,26 @@ DIRECTORY_LIKE_HOSTS = {
     "yellowpages.com",
 }
 
+EXTENSION_PAGE_TYPES = {
+    "company_website",
+    "map_listing",
+    "directory_listing",
+    "google_results",
+    "linkedin_company",
+    "unknown",
+}
+EXTENSION_DEMO_SCENARIOS = {"ready", "review_required", "blocked"}
+
 
 def is_directory_like_host(host: str | None) -> bool:
     normalized = _normalize_host(host)
     if not normalized:
         return False
     return any(normalized == blocked or normalized.endswith(f".{blocked}") for blocked in DIRECTORY_LIKE_HOSTS)
+
+
+def normalize_extension_page_type(value) -> str:
+    return value if isinstance(value, str) and value in EXTENSION_PAGE_TYPES else "unknown"
 
 
 def infer_company_from_extension_payload(data: dict) -> str:
@@ -282,8 +296,10 @@ def build_extension_result(artifact: dict, request_payload: dict) -> dict:
         seen_contacts.add(key)
         items.append(shaped)
 
+    shaped_candidates = []
     for candidate in contact_candidates:
         shaped = verification_view(candidate)
+        shaped_candidates.append(shaped)
         if shaped["verification_status"] == "verified":
             append_unique(verified_contacts, shaped)
         elif shaped["verification_status"] == "rejected":
@@ -351,6 +367,15 @@ def build_extension_result(artifact: dict, request_payload: dict) -> dict:
         (preferred_verified or {}).get("confidence")
         or (top_contact.get("confidence") if show_best_contact else None)
     )
+    selected_shaped_contact = next((item for item in shaped_candidates if (
+        item.get("contact_type") == best_contact_type
+        and _normalize_contact_value(item.get("value")) == _normalize_contact_value(best_contact_value)
+    )), None)
+    best_contact_verification = (
+        (preferred_verified or {}).get("verification_status")
+        or (selected_shaped_contact or {}).get("verification_status")
+        or ("verified" if dossier.get("best_contact_email") and review.get("status") == "ready" else None)
+    )
 
     return {
         "company": dossier.get("company") or ((artifact.get("input") or {}).get("company")),
@@ -380,6 +405,7 @@ def build_extension_result(artifact: dict, request_payload: dict) -> dict:
             "contact_type": best_contact_type,
             "trust_class": best_contact_trust,
             "confidence": best_contact_confidence,
+            "verification_status": best_contact_verification,
         },
         "best_verified_email": best_verified_email,
         "best_verified_path": best_verified_path,
@@ -389,7 +415,7 @@ def build_extension_result(artifact: dict, request_payload: dict) -> dict:
         "detected_context": {
             "url": page_context.get("url"),
             "title": page_context.get("title"),
-            "page_type": page_context.get("page_type"),
+            "page_type": normalize_extension_page_type(page_context.get("page_type")),
             "provided_domain": request_payload.get("domain"),
             "inferred_domain": infer_domain_from_extension_payload(request_payload),
         },
@@ -434,6 +460,29 @@ def run_extension_enrichment(request_payload: dict) -> dict:
     return {
         "artifact": artifact,
         "result": build_extension_result(artifact, request_payload),
+    }
+
+
+def run_extension_demo_enrichment(request_payload: dict, demo_batch: dict) -> dict:
+    if not isinstance(request_payload, dict):
+        raise ApiError(400, "request body must be a JSON object")
+    scenario = request_payload.get("demo_scenario")
+    if scenario not in EXTENSION_DEMO_SCENARIOS:
+        raise ApiError(400, "demo_scenario must be ready, review_required, or blocked")
+    results = demo_batch.get("results") if isinstance(demo_batch, dict) else None
+    if not isinstance(results, list):
+        raise ApiError(500, "demo batch does not include results")
+    artifact = next(
+        (item for item in results if ((item.get("result") or {}).get("status")) == scenario),
+        None,
+    )
+    if not artifact:
+        raise ApiError(404, f"demo scenario not found: {scenario}")
+    return {
+        "artifact": artifact,
+        "result": build_extension_result(artifact, request_payload),
+        "demo_safe": True,
+        "demo_scenario": scenario,
     }
 
 
@@ -1007,6 +1056,8 @@ class Handler(BaseHTTPRequestHandler):
                 batch_summary = {"error": "demo batch unreadable"}
         return {
             "ok": True,
+            "demo_mode": bool(getattr(self.server, "demo_mode", False)),
+            "extension_demo_scenarios": sorted(EXTENSION_DEMO_SCENARIOS) if getattr(self.server, "demo_mode", False) else [],
             "review_file": display_path(self.store.path),
             "demo_batch_file": display_path(demo_batch_path),
             "demo_batch_exists": batch_exists,
@@ -1251,7 +1302,12 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if parsed.path == "/api/extension/enrich":
                 data = self._read_json()
-                result = run_extension_enrichment(data)
+                if getattr(self.server, "demo_mode", False) and data.get("demo_scenario"):
+                    with self.demo_batch_path.open(encoding="utf-8") as fh:
+                        demo_batch = json.load(fh)
+                    result = run_extension_demo_enrichment(data, demo_batch)
+                else:
+                    result = run_extension_enrichment(data)
                 self._send_json(200, {"ok": True, **result})
                 return
             if parsed.path == "/api/batch/export-ready":
@@ -1491,6 +1547,7 @@ def main():
     server.html_path = DEFAULT_HTML_PATH
     server.demo_batch_path = batch_path
     server.auth_token = auth_token
+    server.demo_mode = bool(args.demo)
     print(f"Review UI running on http://{host}:{args.port} using {review_path}")
     print(f"Demo batch path: {batch_path}")
     if auth_token:

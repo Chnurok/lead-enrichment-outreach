@@ -10,7 +10,7 @@ import urllib.request
 from pathlib import Path
 from unittest import mock
 
-from ui.review_server import ApiError, ReviewStore, approve_ready_saved_reviews, bootstrap_demo_artifacts, build_approved_bundle, build_approved_bundle_zip_base64, build_approved_export, build_demo_batch, build_demo_review, build_extension_result, build_handoff_bundle, build_handoff_bundle_zip_base64, build_saved_review_path, export_ready_batch, export_ready_batch_csv_text, generate_missing_ready_drafts, infer_company_from_extension_payload, infer_domain_from_extension_payload, list_saved_reviews, load_approved_bundle_zip_base64, load_handoff_bundle_zip_base64, load_saved_review, run_batch_from_csv_text, run_extension_enrichment, save_review_payloads, validate_review_payload, ThreadedHTTPServer, Handler
+from ui.review_server import ApiError, ReviewStore, approve_ready_saved_reviews, bootstrap_demo_artifacts, build_approved_bundle, build_approved_bundle_zip_base64, build_approved_export, build_demo_batch, build_demo_review, build_extension_result, build_handoff_bundle, build_handoff_bundle_zip_base64, build_saved_review_path, export_ready_batch, export_ready_batch_csv_text, generate_missing_ready_drafts, infer_company_from_extension_payload, infer_domain_from_extension_payload, list_saved_reviews, load_approved_bundle_zip_base64, load_handoff_bundle_zip_base64, load_saved_review, normalize_extension_page_type, run_batch_from_csv_text, run_extension_demo_enrichment, run_extension_enrichment, save_review_payloads, validate_review_payload, ThreadedHTTPServer, Handler
 
 
 class ReviewServerTests(unittest.TestCase):
@@ -162,7 +162,7 @@ class ReviewServerTests(unittest.TestCase):
     def test_build_saved_review_path_uses_company_slug(self):
         payload = self.sample_payload()
         path = build_saved_review_path(payload)
-        self.assertTrue(str(path).endswith("saved-reviews/acme-review.json"))
+        self.assertEqual(path.parts[-2:], ("saved-reviews", "acme-review.json"))
 
     def test_build_saved_review_path_falls_back_when_default_dir_not_writable(self):
         import ui.review_server as review_server
@@ -279,8 +279,33 @@ class ReviewServerTests(unittest.TestCase):
         self.assertEqual(shaped["best_contact"]["value"], "hello@acme.test")
         self.assertEqual(shaped["review"]["status"], "review_required")
         self.assertEqual(shaped["detected_context"]["inferred_domain"], None)
-        self.assertEqual(shaped["detected_context"]["page_type"], None)
+        self.assertEqual(shaped["detected_context"]["page_type"], "unknown")
         self.assertEqual(shaped["unverified_candidates"][0]["verification_status"], "unverified")
+        self.assertEqual(shaped["best_contact"]["verification_status"], "unverified")
+
+    def test_normalize_extension_page_type_rejects_unknown_values(self):
+        self.assertEqual(normalize_extension_page_type("map_listing"), "map_listing")
+        self.assertEqual(normalize_extension_page_type("search_results"), "unknown")
+        self.assertEqual(normalize_extension_page_type(None), "unknown")
+
+    def test_run_extension_demo_enrichment_uses_curated_scenario(self):
+        demo_path = Path(__file__).resolve().parents[1] / "examples" / "demo-output.json"
+        demo_batch = json.loads(demo_path.read_text(encoding="utf-8"))
+        result = run_extension_demo_enrichment({
+            "demo_scenario": "ready",
+            "page_context": {
+                "url": "https://www.deepl.com/",
+                "title": "DeepL",
+                "page_type": "company_website",
+            },
+        }, demo_batch)
+        self.assertTrue(result["demo_safe"])
+        self.assertEqual(result["result"]["company"], "DeepL")
+        self.assertEqual(result["result"]["review"]["status"], "ready")
+        self.assertTrue(result["result"]["draft"]["subject"])
+
+        with self.assertRaises(ApiError):
+            run_extension_demo_enrichment({"demo_scenario": "other"}, demo_batch)
 
     def test_build_extension_result_falls_back_to_best_contact_email(self):
         artifact = {

@@ -146,6 +146,16 @@ input {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
+select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #fffdf8;
+  color: var(--ink);
+  font: inherit;
+}
+
 button {
   border: 0;
   border-radius: 999px;
@@ -156,7 +166,7 @@ button {
 
 button:disabled {
   opacity: 0.6;
-  cursor: wait;
+  cursor: not-allowed;
 }
 
 button.primary {
@@ -195,6 +205,10 @@ button.ghost {
 
 .status.error {
   color: var(--block);
+}
+
+.status.warning {
+  color: var(--warn);
 }
 
 .result {
@@ -374,4 +388,27 @@ button.compact {
 
 .hidden {
   display: none;
+}
+
+.recent-entry {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.recent-copy {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.recent-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 5px;
+}
+
+.recent-actions button {
+  padding: 4px 8px;
+  font-size: 11px;
 }

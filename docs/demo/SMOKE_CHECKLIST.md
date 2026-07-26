@@ -31,6 +31,16 @@ SMOKE_OK
 4. Confirm a ready lead can be opened
 5. Confirm save / save-as / bulk actions are clickable and recover cleanly
 
+## Extension pass
+
+1. Run `make extension-check` and `make extension-backend-smoke`.
+2. Start `make demo-ui` and confirm `http://127.0.0.1:8095/healthz` reports `demo_mode: true`.
+3. Load unpacked `extension/`; do not load or edit `extension.zip`.
+4. Confirm the popup shows backend `ok`, normalized current-page context, and local recent recoveries.
+5. Exercise all three `Demo-safe result` values and confirm distinct `ready`, `review_required`, and `blocked` states.
+6. Confirm best contact, warnings, reasons, next step, opener (ready only), and copy/open actions match the state.
+7. Stop the backend and reopen the popup: it must show a persistent connection error while keeping recent recoveries visible.
+
 ## If something fails
 
 Check in this order:

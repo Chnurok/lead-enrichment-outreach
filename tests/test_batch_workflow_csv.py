@@ -112,7 +112,7 @@ class BatchWorkflowCsvTests(unittest.TestCase):
 
             proc = subprocess.run(
                 [
-                    "python3",
+                    sys.executable,
                     str(BATCH_SCRIPT),
                     str(csv_path),
                     "--offer",
@@ -210,7 +210,7 @@ class BatchWorkflowCsvTests(unittest.TestCase):
                 }), encoding="utf-8")
                 proc = subprocess.run(
                     [
-                        "python3",
+                        sys.executable,
                         str(WORKFLOW_SCRIPT),
                         "--dossier-json",
                         str(dossier_path),
